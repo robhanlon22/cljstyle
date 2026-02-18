@@ -192,6 +192,31 @@
         "(defelem foo [x]\n  [:foo x])")))
 
 
+(deftest aligned-forms
+  (let [align-rules (assoc-in default-rules [:align :enabled?] true)
+        align-override-rules (assoc-in align-rules [:indentation :indents 'cond->] [[:inner 0]])]
+    (is (reformatted?
+          fmt/reformat-form default-rules
+          "(let [path \"deps\"\n      profile \"tool\"]\n  [path profile])"
+          "(let [path \"deps\"\n      profile \"tool\"]\n  [path profile])"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "(let [path \"deps\"\n      profile \"tool\"]\n  [path profile])"
+          "(let [path    \"deps\"\n      profile \"tool\"]\n  [path profile])"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "{:path \"deps\"\n :profile \"tool\"}"
+          "{:path    \"deps\"\n :profile \"tool\"}"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "(cond-> compile-mode\n  a 1\n  bb 2)"
+          "(cond-> compile-mode\n  a  1\n  bb 2)"))
+    (is (reformatted?
+          fmt/reformat-form align-override-rules
+          "(cond-> compile-mode\n  a 1\n  bb 2)"
+          "(cond-> compile-mode\n  a                  1\n  bb                 2)"))))
+
+
 (deftest eof-newlines
   (is (= ":x" (fmt/reformat-file ":x" (assoc-in default-rules [:eof-newline :enabled?] false))))
   (is (= ":x\n\n\n" (fmt/reformat-file ":x\n\n\n" (assoc-in default-rules [:eof-newline :enabled?] false))))
