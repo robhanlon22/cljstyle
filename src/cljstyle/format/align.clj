@@ -130,29 +130,35 @@
 (defn- newline-node?
   "True if the node at this location is a newline token."
   [zloc]
-  (and zloc (= :newline (n/tag (z/node zloc)))))
+  (= :newline (n/tag (z/node zloc))))
 
 
 (defn- namespaced-map?
   "True if the node at this location is a namespaced map."
   [zloc]
-  (and zloc (= :namespaced-map (n/tag (z/node zloc)))))
+  (= :namespaced-map (n/tag (z/node zloc))))
+
+
+(def ^:private trivial-tags
+  #{:whitespace :comma :newline :comment})
+
+
+(defn- trivial-node?
+  "True if this node is skipped while scanning for alignment cells."
+  [zloc]
+  (contains? trivial-tags (n/tag (z/node zloc))))
 
 
 (defn- skip-trivial-nodes
   "Skip whitespace, commas, comments, and newline tokens."
   [zloc move]
-  (z/skip move #(or (zl/space? %)
-                    (comma-node? %)
-                    (newline-node? %)
-                    (zl/comment? %))
-          zloc))
+  (z/skip move trivial-node? zloc))
 
 
 (defn- next-form-node
   "Return the next substantive sibling node."
   [zloc]
-  (some-> zloc z/right* (skip-trivial-nodes z/right*)))
+  (-> zloc z/right* (skip-trivial-nodes z/right*)))
 
 
 (defn- next-substantive-node
@@ -165,10 +171,7 @@
       (nil? zloc)
       nil
 
-      (or (zl/space? zloc)
-          (comma-node? zloc)
-          (newline-node? zloc)
-          (zl/comment? zloc))
+      (trivial-node? zloc)
       (recur (z/right* zloc))
 
       :else
@@ -178,7 +181,7 @@
 (defn- first-form-node
   "Return the first substantive child node, unwrapping metadata."
   [zloc]
-  (some-> zloc z/down (skip-trivial-nodes z/right*) zl/unwrap-meta))
+  (-> zloc z/down (skip-trivial-nodes z/right*) zl/unwrap-meta))
 
 
 (defn- start-column
@@ -234,30 +237,22 @@
     (loop [zloc zloc]
       (if-some [line-node (when-let [newline-loc (z/skip z/next* (complement newline-node?) zloc)]
                             (let [next-loc (z/next* newline-loc)]
-                              (when (and next-loc (not (z/end? next-loc)))
+                              (when (not (z/end? next-loc))
                                 next-loc)))]
-        (if (newline-node? line-node)
-          (recur line-node)
-          (let [line-node (adjust-left-spacing line-node padding)
-                first-content (loop [content-loc line-node]
-                                (cond
-                                  (nil? content-loc)
-                                  nil
-
-                                  (newline-node? content-loc)
-                                  nil
-
-                                  (or (zl/space? content-loc)
-                                      (comma-node? content-loc))
-                                  (recur (z/right* content-loc))
-
-                                  :else
-                                  content-loc))
-                line-node (if (and indent-comments?
-                                   (zl/comment? first-content))
-                            (maybe-indent-standalone-comment first-content true false)
-                            line-node)]
-            (recur line-node)))
+        (let [line-node (adjust-left-spacing line-node padding)
+              first-content (let [content-loc (z/skip
+                                                z/right*
+                                                #(or (zl/space? %)
+                                                     (comma-node? %))
+                                                line-node)]
+                              (when (and content-loc
+                                         (not (newline-node? content-loc)))
+                                content-loc))
+              line-node (if (and indent-comments?
+                                 (zl/comment? first-content))
+                          (maybe-indent-standalone-comment first-content true false)
+                          line-node)]
+          (recur line-node))
         zloc))
     zloc))
 
@@ -285,13 +280,11 @@
   (let [parent (z/up comment-loc)]
     (if (or (not indent-comments?)
             line-has-content?
-            (and parent
-                 (= (first (z/position comment-loc))
-                    (first (z/position parent)))))
+            (= (first (z/position comment-loc))
+               (first (z/position parent))))
       comment-loc
-      (let [target-column (some-> comment-loc
-                                  next-substantive-node
-                                  start-column)]
+      (let [next-loc (next-substantive-node comment-loc)
+            target-column (when next-loc (start-column next-loc))]
         (if (pos-int? target-column)
           (adjust-left-spacing
             comment-loc
@@ -440,10 +433,10 @@
   [zloc rule-config]
   (and (z/vector? zloc)
        (let [parent (z/up zloc)]
-         (and (z/list? parent)
-              (contains? (:binding-form-set rule-config)
-                         (some-> parent first-form-node z/string))
-              (= zloc (some-> parent first-form-node next-form-node))))))
+         (when (z/list? parent)
+           (when-let [head-loc (first-form-node parent)]
+             (and (contains? (:binding-form-set rule-config) (z/string head-loc))
+                  (= zloc (next-form-node head-loc))))))))
 
 
 (defn- compile-clause-skip-matcher
@@ -456,9 +449,6 @@
       [{:keys [exact unqualified] :as matcher} [rule-key opts]]
       (let [method (first opts)
             skip (cond
-                   (number? method)
-                   method
-
                    (and (sequential? method)
                         (number? (second method)))
                    (second method)
@@ -467,14 +457,10 @@
                    0)]
         (cond
           (and (symbol? rule-key) (namespace rule-key))
-          (if (contains? exact rule-key)
-            matcher
-            (assoc matcher :exact (assoc exact rule-key skip)))
+          (assoc matcher :exact (assoc exact rule-key skip))
 
           (symbol? rule-key)
-          (if (contains? unqualified rule-key)
-            matcher
-            (assoc matcher :unqualified (assoc unqualified rule-key skip)))
+          (assoc matcher :unqualified (assoc unqualified rule-key skip))
 
           (instance? java.util.regex.Pattern rule-key)
           (update matcher :patterns conj [rule-key skip])
@@ -510,17 +496,16 @@
 
   Precedence: exact symbol, unqualified symbol, regex pattern, then config map."
   [head-string skip-matcher clause-form-skips]
-  (let [head-sym (some-> head-string symbol)
-        base-sym (some-> head-sym name symbol)
+  (let [head-sym (symbol head-string)
+        base-sym (symbol (name head-sym))
         {:keys [exact unqualified patterns]} skip-matcher]
     (or
-      (when head-sym
-        (or (get exact head-sym)
-            (get unqualified base-sym)))
+      (get exact head-sym)
+      (get unqualified base-sym)
       (some
         (fn regex-skip
           [[pattern skip]]
-          (when (and head-string (re-find pattern head-string))
+          (when (re-find pattern head-string)
             skip))
         patterns)
       (get clause-form-skips head-string 0))))
@@ -529,7 +514,7 @@
 (defn- first-alignable-clause-node
   "Locate the first clause node eligible for clause-style alignment."
   [zloc skip-matcher clause-form-skips]
-  (let [head-string (some-> zloc first-form-node z/string)
+  (let [head-string (-> zloc first-form-node z/string)
         skip-count (resolve-clause-skip-count head-string skip-matcher clause-form-skips)]
     (loop [zloc (-> zloc first-form-node next-form-node)
            skip skip-count]
@@ -554,16 +539,13 @@
     (and (contains? (:target-set rule-config) :clauses)
          (z/list? zloc)
          (contains? (:clause-form-skips rule-config)
-                    (some-> zloc first-form-node z/string)))
+                    (when-let [head (first-form-node zloc)]
+                      (z/string head))))
     :clause
 
     (and (contains? (:target-set rule-config) :reader-conditionals)
-         (let [parent (z/up zloc)]
-           (and parent
-                (zl/reader-conditional? parent)
-                (or (z/list? zloc)
-                    (z/vector? zloc)
-                    (z/map? zloc)))))
+         (zl/reader-conditional? (z/up zloc))
+         (contains? #{:list :vector :map} (z/tag zloc)))
     :reader-conditional
 
     :else
@@ -587,34 +569,32 @@
    (let [rule-config (effective-config rule-config)
          rules-config (or rules-config {})
          alignment-kind (node-alignment-kind zloc rule-config)
-         start-fn (case alignment-kind
-                    :map (fn [loc]
-                           (cond
-                             (z/map? loc)
-                             (first-form-node loc)
+         start-fn (cond
+                    (= :map alignment-kind)
+                    (fn [loc]
+                      (if (z/map? loc)
+                        (first-form-node loc)
+                        (-> loc
+                            z/down
+                            (#(z/skip z/right* (complement z/map?) %))
+                            first-form-node)))
 
-                             (namespaced-map? loc)
-                             (some-> loc
-                                     z/down
-                                     (#(z/skip z/right* (complement z/map?) %))
-                                     first-form-node)
+                    (= :binding alignment-kind)
+                    first-form-node
 
-                             :else
-                             nil))
-                    :binding first-form-node
-                    :reader-conditional first-form-node
-                    :clause (let [skip-matcher (clause-skip-matcher
-                                                 (get-in rules-config [:indentation :indents]))
-                                  clause-form-skips (:clause-form-skips rule-config)]
-                              #(first-alignable-clause-node % skip-matcher clause-form-skips))
-                    nil)]
-     (if-not start-fn
-       zloc
-       (if-let [start (start-fn zloc)]
-         (let [plan (scan-column-targets start)
-               zloc (apply-column-targets start plan rule-config)]
-           (or (z/up zloc) zloc))
-         zloc)))))
+                    (= :reader-conditional alignment-kind)
+                    first-form-node
+
+                    :else
+                    (let [skip-matcher (clause-skip-matcher
+                                         (get-in rules-config [:indentation :indents]))
+                          clause-form-skips (:clause-form-skips rule-config)]
+                      #(first-alignable-clause-node % skip-matcher clause-form-skips)))]
+     (if-let [start (start-fn zloc)]
+       (let [plan (scan-column-targets start)
+             zloc (apply-column-targets start plan rule-config)]
+         (z/up zloc))
+       zloc))))
 
 
 (def align-columns

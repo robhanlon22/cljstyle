@@ -194,7 +194,24 @@
 
 (deftest aligned-forms
   (let [align-rules (assoc-in default-rules [:align :enabled?] true)
-        align-override-rules (assoc-in align-rules [:indentation :indents 'cond->] [[:inner 0]])]
+        align-override-rules (assoc-in align-rules [:indentation :indents 'cond->] [[:inner 0]])
+        align-numeric-indent-method-rules (-> align-rules
+                                              (assoc-in [:indentation :enabled?] false)
+                                              (assoc-in [:indentation :indents 'odd-case] [1]))
+        align-custom-clause-rules (-> align-rules
+                                      (update-in
+                                        [:align :extra-clause-forms]
+                                        merge
+                                        {"switcher" 0
+                                         "demo/switcher" 0
+                                         "regex-switch" 0})
+                                      (update-in
+                                        [:indentation :indents]
+                                        merge
+                                        {'demo/switcher [[:inner 1]]
+                                         'switcher [[:inner 1]]
+                                         #"^regex-switch$" [[:inner 1]]
+                                         :ignore-me [[:inner 0]]}))]
     (is (reformatted?
           fmt/reformat-form default-rules
           "(let [path \"deps\"\n      profile \"tool\"]\n  [path profile])"
@@ -214,7 +231,43 @@
     (is (reformatted?
           fmt/reformat-form align-override-rules
           "(cond-> compile-mode\n  a 1\n  bb 2)"
-          "(cond-> compile-mode\n  a                  1\n  bb                 2)"))))
+          "(cond-> compile-mode\n  a                  1\n  bb                 2)"))
+    (is (reformatted?
+          fmt/reformat-form align-custom-clause-rules
+          "(switcher base\n  a 1\n  bb 2)"
+          "(switcher base\n          a  1\n          bb 2)"))
+    (is (reformatted?
+          fmt/reformat-form align-custom-clause-rules
+          "(demo/switcher base\n  a 1\n  bb 2)"
+          "(demo/switcher base\n               a  1\n               bb 2)"))
+    (is (reformatted?
+          fmt/reformat-form align-custom-clause-rules
+          "(regex-switch base\n  a 1\n  bb 2)"
+          "(regex-switch base\n              a  1\n              bb 2)"))
+    (is (reformatted?
+          fmt/reformat-form align-numeric-indent-method-rules
+          "(cond\n  a 1\n  bb 2)"
+          "(cond\n  a  1\n  bb 2)"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "{:c [(str base)\n\n     (emit base)]\n :long-key 1}"
+          "{:c        [(str base)\n\n            (emit base)]\n :long-key 1}"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "{:a 1 ;; inline\n :long-key 2}"
+          "{:a 1 ; inline\n      :long-key 2}"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "{:a 1\n ;; trailing\n}"
+          "{:a 1\n ;; trailing\n }"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "#?(:clj :server\n   :cljs :browser)"
+          "#?(:clj  :server\n   :cljs :browser)"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "(do ())"
+          "(do ())"))))
 
 
 (deftest eof-newlines

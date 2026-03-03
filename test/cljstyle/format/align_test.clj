@@ -374,3 +374,57 @@
       "[:id 1\n :service-name 2]"
       "[:id 1\n ;; keep vector row comment\n :service-name 2]"
       "[:id 1\n\n :service-name 2]")))
+
+
+(deftest edge-noop-cases
+  (testing "edge shapes stay stable while still exercising align walks"
+    (are [config source]
+         (rule-reformatted? align/align-columns config source source)
+
+      {}
+      "{}"
+
+      {}
+      "#:acct{}"
+
+      {}
+      "()"
+
+      {}
+      "(condp)"
+
+      {}
+      "(let\n  [aa, 1\n   ;; keep line\n   bb, 2])"
+
+      {:indent-comments? false}
+      "{:a 1\n ;; keep standalone\n :b 2}"
+
+      {}
+      "{:a 1\n ;; trailing note\n}")))
+
+
+(deftest multiline-continuation-edge-cases
+  (testing "multiline value continuations handle trailing and blank lines safely"
+    (are [source expected]
+         (rule-reformatted? align/align-columns {} source expected)
+
+      "{:a [1\n]\n :very-long-key 2}"
+      "{:a             [1\n]\n :very-long-key 2}"
+
+      "{:a [1\n   ]\n :very-long-key 2}"
+      "{:a             [1\n               ]\n :very-long-key 2}"
+
+      "{:a [\n]\n :very-long-key 2}"
+      "{:a             [\n]\n :very-long-key 2}"
+
+      "{:a [1\n,2]\n :very-long-key 3}"
+      "{:a             [1\n            ,2]\n :very-long-key 3}"
+
+      "{:a [1\n ;; lone comment\n]\n :very-long-key 2}"
+      "{:a             [1\n             ;; lone comment\n]\n :very-long-key 2}"))
+  (testing "trailing standalone comments keep alignment and closing delimiter spacing"
+    (are [source expected]
+         (rule-reformatted? align/align-columns {} source expected)
+
+      "{:a 1\n ;; trailing only\n}"
+      "{:a 1\n ;; trailing only\n}")))
