@@ -267,9 +267,14 @@
 
   Applies the same delta to multiline continuation lines."
   [zloc target-column indent-comments?]
-  (let [padding (- target-column (start-column zloc))]
+  (let [padding (- target-column (start-column zloc))
+        pad-subtree (fn [subtree-loc]
+                      (pad-multiline-continuations
+                        subtree-loc
+                        padding
+                        indent-comments?))]
     (-> (adjust-left-spacing zloc padding)
-        (z/subedit-> (pad-multiline-continuations padding indent-comments?)))))
+        (z/subedit-> pad-subtree))))
 
 
 (defn- maybe-indent-standalone-comment
