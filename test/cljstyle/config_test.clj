@@ -72,16 +72,16 @@
     (is (valid? ::config/config {}))
     (is (valid? ::config/config {:rules {:indentation {:enabled? true}}}))
     (is (valid? ::config/config
-               {:rules
-                {:align
-                 {:enabled? true
-                  :targets #{:maps :bindings :clauses :reader-conditionals}
-                  :extra-binding-forms ["my-let" "my/let"]
-                  :extra-clause-forms {"my-cond" 0 "my/case-like" 1}
-                  :exclude-forms #{"case" "cond"}
-                  :indent-comments? true}}}))
+                {:rules
+                 {:align
+                  {:enabled? true
+                   :targets #{:maps :bindings :clauses :reader-conditionals}
+                   :extra-binding-forms ["my-let" "my/let"]
+                   :extra-clause-forms {"my-cond" 0 "my/case-like" 1}
+                   :exclude-forms #{"case" "cond"}
+                   :indent-comments? true}}}))
     (is (invalid? ::config/config
-                 {:rules {:align {:targets #{:unknown}}}}))
+                  {:rules {:align {:targets #{:unknown}}}}))
     (is (valid? ::config/config {:something-else 123}))
     (is (valid? ::config/config config/default-config))))
 
