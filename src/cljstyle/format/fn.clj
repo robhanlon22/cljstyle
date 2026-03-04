@@ -94,7 +94,7 @@
   [zloc _rule-config]
   (let [break? (defn-or-multiline? zloc)]
     (loop [section :start
-           zloc (z/down zloc)]
+           zloc    (z/down zloc)]
       (cond
         ;; Join whitespace between start and name-or-args
         (and (= :start section)

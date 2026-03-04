@@ -53,7 +53,7 @@
   [zloc]
   (let [spliced? (= "?@" (z/string (z/down zloc)))]
     (loop [branches (sorted-map)
-           zloc (-> zloc z/down z/right z/down)]
+           zloc     (-> zloc z/down z/right z/down)]
       (if zloc
         (let [branch (z/sexpr zloc)
               clause (z/right zloc)]
@@ -115,13 +115,13 @@
   "Parse the ns form at this location, returning a map of the components of the
   namespace definition."
   [zloc]
-  (loop [ns-data (let [ns-sym (-> zloc z/down z/right z/sexpr)
-                       ns-meta (meta ns-sym)]
-                   (cond-> {:ns ns-sym}
-                     (seq ns-meta)
-                     (assoc :meta ns-meta)))
+  (loop [ns-data  (let [ns-sym  (-> zloc z/down z/right z/sexpr)
+                        ns-meta (meta ns-sym)]
+                    (cond-> {:ns ns-sym}
+                      (seq ns-meta)
+                      (assoc :meta ns-meta)))
          comments []
-         zloc (-> zloc z/down z/right z/right*)]
+         zloc     (-> zloc z/down z/right z/right*)]
     (if zloc
       (cond
         (z/whitespace? zloc)
@@ -141,7 +141,7 @@
 
         (z/list? zloc)
         (let [[header & elements] (n/children (parse-list-with-comments (z/node zloc)))
-              data-key (keyword (n/sexpr header))]
+              data-key            (keyword (n/sexpr header))]
           (recur (-> ns-data
                      (update data-key (fnil into []) elements)
                      (update data-key vary-meta update ::comments (fnil into []) comments))
@@ -211,10 +211,10 @@
   vector, return as-is."
   [element]
   (case (n/tag element)
-    :token (n/vector-node [element])
-    :vector element
+    :token        (n/vector-node [element])
+    :vector       element
     :reader-macro element
-    :uneval element))
+    :uneval       element))
 
 
 (defn- expand-require-group
@@ -223,7 +223,7 @@
   [element]
   (if (= :list (n/tag element))
     (let [[prefix & elements] (n/children element)
-          prefix (name (n/sexpr prefix))]
+          prefix              (name (n/sexpr prefix))]
       (into []
             (map
               (fn expand
@@ -317,7 +317,7 @@
   [element]
   (if (contains? #{:list :vector} (n/tag element))
     (let [[package & classes] (strip-whitespace (n/children element))
-          pkg-comments (::comments (meta element))]
+          pkg-comments        (::comments (meta element))]
       (map (fn expand-group
              [class-node]
              (-> (symbol (str (n/sexpr package) \. (n/sexpr class-node)))
@@ -385,8 +385,8 @@
   "Format a group of imported classes, accounting for break-width settings."
   [rule-config base-indent package class-names]
   (if (= 1 (count class-names))
-    (let [class-name (first class-names)
-          break-width (:import-break-width rule-config 60)
+    (let [class-name      (first class-names)
+          break-width     (:import-break-width rule-config 60)
           qualified-class (symbol (str package \. class-name))]
       ;; If the import was fully qualified before and it's under the break
       ;; width, keep it ungrouped.
@@ -420,13 +420,13 @@
 (defn- render-ns-symbol
   "Return a syntax node for a namespace symbol. Handles attached metadata."
   [ns-data]
-  (let [ns-meta (not-empty (:meta ns-data))
-        flags (->> ns-meta
-                   (filter (comp true? val))
-                   (map key)
-                   (set)
-                   (sort)
-                   (reverse))
+  (let [ns-meta    (not-empty (:meta ns-data))
+        flags      (->> ns-meta
+                        (filter (comp true? val))
+                        (map key)
+                        (set)
+                        (sort)
+                        (reverse))
         other-meta (apply dissoc ns-meta flags)]
     (reduce
       (fn flag-meta
@@ -549,7 +549,7 @@
       (map
         (fn expand-conditional
           [branches]
-          (let [spliced? (::spliced? (meta branches))
+          (let [spliced?    (::spliced? (meta branches))
                 base-indent (+ indent-size (if spliced? 4 3))]
             [(n/spaces indent-size)
              (n/reader-macro-node

@@ -36,17 +36,17 @@
           "(do (foo)\n    (bar))")))
   (testing "with list-indent 1"
     (is (rule-reformatted?
-          indent/reindent-lines {:indents {'if [[:block 1]]}
+          indent/reindent-lines {:indents     {'if [[:block 1]]}
                                  :list-indent 1}
           "(if (= x 1)\n:foo\n:bar)"
           "(if (= x 1)\n  :foo\n  :bar)"))
     (is (rule-reformatted?
-          indent/reindent-lines {:indents {'do [[:block 0]]}
+          indent/reindent-lines {:indents     {'do [[:block 0]]}
                                  :list-indent 1}
           "(do\n(foo)\n(bar))"
           "(do\n  (foo)\n  (bar))"))
     (is (rule-reformatted?
-          indent/reindent-lines {:indents {'deftype [[:block 1] [:inner 1]]}
+          indent/reindent-lines {:indents     {'deftype [[:block 1] [:inner 1]]}
                                  :list-indent 1}
           "(deftype Foo\n[x]\nBar)"
           "(deftype Foo\n  [x]\n  Bar)")))
@@ -62,9 +62,9 @@
 
 
 (deftest stair-indentation
-  (let [indents {'cond [[:stair 0]]
-                 'condp [[:stair 2]]
-                 'cond-> [[:stair 1]]
+  (let [indents {'cond    [[:stair 0]]
+                 'condp   [[:stair 2]]
+                 'cond->  [[:stair 1]]
                  'cond->> [[:stair 1]]}]
     (is (rule-reformatted?
           indent/reindent-lines {:indents indents}
@@ -95,7 +95,7 @@
           "(cond->> x\na? a\nb? b)"
           "(cond->> x\n  a? a\n  b? b)"))
     (is (rule-reformatted?
-          indent/reindent-lines {:indents indents
+          indent/reindent-lines {:indents     indents
                                  :list-indent 1}
           "(cond\na?\n a\nb?\n  b)"
           "(cond\n  a?\n    a\n  b?\n    b)"))))
@@ -134,7 +134,7 @@
         "(letfn [(foo [x]\n(* x x))]\n(foo 5))"
         "(letfn [(foo [x]\n          (* x x))]\n  (foo 5))"))
   (is (rule-reformatted?
-        indent/reindent-lines {:indents {'letfn [[:block 1] [:inner 2 0]]}
+        indent/reindent-lines {:indents     {'letfn [[:block 1] [:inner 2 0]]}
                                :list-indent 1}
         "(letfn [(foo\n [x]\n(* x x))]\n(foo 5))"
         "(letfn [(foo\n          [x]\n          (* x x))]\n  (foo 5))")))
@@ -200,8 +200,8 @@
         "(if foo\n(do bar\nbaz)\nquz)"
         "(if foo\n  (do bar\n      baz)\n  quz)"))
   (is (rule-reformatted?
-        indent/reindent-lines {:indents {'do [[:block 0]]
-                                         'if [[:block 1]]}
+        indent/reindent-lines {:indents     {'do [[:block 0]]
+                                             'if [[:block 1]]}
                                :list-indent 1}
         "(if foo\n(do bar\nbaz)\n(quz\n  foo\nbar))"
         "(if foo\n  (do bar\n      baz)\n  (quz\n   foo\n   bar))")))

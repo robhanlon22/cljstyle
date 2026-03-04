@@ -20,8 +20,8 @@
   (when (seq args)
     (u/printerr "cljstyle pipe command takes no arguments")
     (u/exit! 1))
-  (let [cwd (System/getProperty "user.dir")
-        config (u/load-configs cwd (io/file cwd))
+  (let [cwd       (System/getProperty "user.dir")
+        config    (u/load-configs cwd (io/file cwd))
         formatted (format/reformat-file (slurp *in*) (:rules config))]
     (print formatted)
     (flush)))

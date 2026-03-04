@@ -113,7 +113,7 @@
   "Report task results in a shared map and take any associated side-effects."
   [results result]
   ;; Side effects.
-  (let [elapsed (:elapsed result)
+  (let [elapsed     (:elapsed result)
         elapsed-str (when elapsed
                       (str " (" (u/duration-str elapsed) ")"))]
     (when-let [message (:debug result)]
@@ -131,9 +131,9 @@
         (print-error ex)
         (flush))))
   ;; Update results map.
-  (let [result-type (:type result)
+  (let [result-type   (:type result)
         ignored-type? #{:unrelated :ignored}
-        error-type? #{:process-error :search-error}]
+        error-type?   #{:process-error :search-error}]
     (-> results
         (update-in [:counts result-type] (fnil inc 0))
         (cond->
@@ -163,7 +163,7 @@
           (cond
             (config/ignored? config (u/option :ignore) file)
             (report!
-              {:type :ignored
+              {:type  :ignored
                :debug (str "Ignoring file " path)})
 
             (config/source-file? config file)
@@ -177,15 +177,15 @@
                                   :elapsed @watch)))
                 (catch Exception ex
                   (report!
-                    {:type :process-error
-                     :size (.length file)
-                     :warn (str "Error while processing file " path)
-                     :error ex
+                    {:type    :process-error
+                     :size    (.length file)
+                     :warn    (str "Error while processing file " path)
+                     :error   ex
                      :elapsed @watch}))))
 
             (config/directory? file)
             (try
-              (let [config' (config/merge-settings config (config/dir-config file))
+              (let [config'  (config/merge-settings config (config/dir-config file))
                     subtasks (mapv (fn file-task
                                      [child]
                                      (processing-action process! results config' root child))
@@ -193,8 +193,8 @@
                 (ForkJoinTask/invokeAll ^java.util.Collection subtasks))
               (catch Exception ex
                 (report!
-                  {:type :search-error
-                   :warn (str "Error while searching directory " path)
+                  {:type  :search-error
+                   :warn  (str "Error while searching directory " path)
                    :error ex})))
 
             :else
@@ -213,7 +213,7 @@
   [process! config+paths]
   (let [elapsed (stopwatch)
         timeout (or (u/option :timeout) 300)
-        pool (ForkJoinPool.)
+        pool    (ForkJoinPool.)
         results (agent {})]
     (clear-work-state!)
     (->>

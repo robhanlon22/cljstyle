@@ -263,7 +263,7 @@
       "(case action\n  \"scan\" (scan/print-usage)\n  \"audit\" (audit/print-usage)\n  (print-action-usage summary))"
 
       {:extra-clause-forms {"switchy" 0}
-       :exclude-forms #{"switchy"}}
+       :exclude-forms      #{"switchy"}}
       "(switchy\n  k 1\n  node 2)"
       "(switchy\n  k 1\n  node 2)")))
 

@@ -9,6 +9,9 @@
   :namespaces
   {:import-break-width 80}
 
+  :align
+  {:enabled? true}
+
   :indentation
   {:indents
    {thrown-with-data? [[:block 1]]

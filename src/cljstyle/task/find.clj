@@ -25,8 +25,8 @@
   "Implementation of the `find` command."
   [paths]
   (let [results (process/process-files! find-source paths)
-        counts (:counts results)
-        total (apply + (vals counts))]
+        counts  (:counts results)
+        total   (apply + (vals counts))]
     (u/logf "Searched %d files in %.2f ms"
             total
             (:elapsed results -1.0))

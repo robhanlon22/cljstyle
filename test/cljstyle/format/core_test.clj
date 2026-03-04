@@ -193,25 +193,25 @@
 
 
 (deftest aligned-forms
-  (let [align-rules (assoc-in default-rules [:align :enabled?] true)
-        align-override-rules (assoc-in align-rules [:indentation :indents 'cond->] [[:inner 0]])
+  (let [align-rules                       (assoc-in default-rules [:align :enabled?] true)
+        align-override-rules              (assoc-in align-rules [:indentation :indents 'cond->] [[:inner 0]])
         align-numeric-indent-method-rules (-> align-rules
                                               (assoc-in [:indentation :enabled?] false)
                                               (assoc-in [:indentation :indents 'odd-case] [1]))
-        align-custom-clause-rules (-> align-rules
-                                      (update-in
-                                        [:align :extra-clause-forms]
-                                        merge
-                                        {"switcher" 0
-                                         "demo/switcher" 0
-                                         "regex-switch" 0})
-                                      (update-in
-                                        [:indentation :indents]
-                                        merge
-                                        {'demo/switcher [[:inner 1]]
-                                         'switcher [[:inner 1]]
-                                         #"^regex-switch$" [[:inner 1]]
-                                         :ignore-me [[:inner 0]]}))]
+        align-custom-clause-rules         (-> align-rules
+                                              (update-in
+                                                [:align :extra-clause-forms]
+                                                merge
+                                                {"switcher"      0
+                                                 "demo/switcher" 0
+                                                 "regex-switch"  0})
+                                              (update-in
+                                                [:indentation :indents]
+                                                merge
+                                                {'demo/switcher    [[:inner 1]]
+                                                 'switcher         [[:inner 1]]
+                                                 #"^regex-switch$" [[:inner 1]]
+                                                 :ignore-me        [[:inner 0]]}))]
     (is (reformatted?
           fmt/reformat-form default-rules
           "(let [path \"deps\"\n      profile \"tool\"]\n  [path profile])"

@@ -78,16 +78,16 @@
   ([opts]
    (version-info opts false))
   ([opts next?]
-   {:tag (str major-version
-              "."
-              (cond-> (parse-long (b/git-count-revs nil))
-                next? inc)
-              (when-let [qualifier (:qualifier opts)]
-                (str "-" qualifier))
-              (when (:snapshot opts)
-                "-SNAPSHOT"))
+   {:tag    (str major-version
+                 "."
+                 (cond-> (parse-long (b/git-count-revs nil))
+                   next? inc)
+                 (when-let [qualifier (:qualifier opts)]
+                   (str "-" qualifier))
+                 (when (:snapshot opts)
+                   "-SNAPSHOT"))
     :commit (b/git-process {:git-args "rev-parse HEAD"})
-    :date (str (LocalDate/now))}))
+    :date   (str (LocalDate/now))}))
 
 
 (defn- format-version
@@ -117,8 +117,8 @@
 (defn- update-version
   "Update version references in repository files."
   [version]
-  (let [tag (:tag version)
-        version-file (io/file "VERSION.txt")
+  (let [tag               (:tag version)
+        version-file      (io/file "VERSION.txt")
         integrations-file (io/file "doc/integrations.md")]
     (spit version-file tag)
     (-> (slurp integrations-file)
@@ -135,8 +135,8 @@
   "Stamp the CHANGELOG file with the new version."
   [version]
   (let [{:keys [tag date]} version
-        file (io/file "CHANGELOG.md")
-        changelog (slurp file)]
+        file               (io/file "CHANGELOG.md")
+        changelog          (slurp file)]
     (when (str/includes? changelog "## [Unreleased]\n\n...\n")
       (binding [*out* *err*]
         (println "Changelog does not appear to have been updated with changes, aborting")
@@ -160,7 +160,7 @@
         (println "Uncommitted changes in local repository, aborting")
         (System/exit 2))))
   (let [version (version-info opts true)
-        tag (:tag version)]
+        tag     (:tag version)]
     (update-version version)
     (update-changelog version)
     (b/git-process {:git-args ["commit" "-am" (str "Prepare release " tag)]})
@@ -190,20 +190,20 @@
 (defn pom
   "Write out a pom.xml file for the project."
   [opts]
-  (let [version (version-info opts)
+  (let [version  (version-info opts)
         pom-file (b/pom-path
                    {:class-dir class-dir
-                    :lib lib-name})]
+                    :lib       lib-name})]
     (b/write-pom
-      {:basis project-basis
-       :lib lib-name
-       :version (:tag version)
-       :src-dirs [src-dir]
+      {:basis     project-basis
+       :lib       lib-name
+       :version   (:tag version)
+       :src-dirs  [src-dir]
        :class-dir class-dir
-       :pom-data (pom-template
-                   (if (or (:snapshot opts) (:qualifier opts))
-                     (:commit version)
-                     (:tag version)))})
+       :pom-data  (pom-template
+                    (if (or (:snapshot opts) (:qualifier opts))
+                      (:commit version)
+                      (:tag version)))})
     (assoc opts
            :version version
            :pom-file pom-file)))
@@ -212,32 +212,32 @@
 (defn jar
   "Build a JAR file for distribution."
   [opts]
-  (let [opts (pom opts)
-        version (:version opts)
+  (let [opts     (pom opts)
+        version  (:version opts)
         jar-file (format "target/%s-%s.jar"
                          (name lib-name)
                          (:tag version))]
     (write-version-resource version)
     (b/copy-dir
-      {:src-dirs [resource-dir src-dir]
+      {:src-dirs   [resource-dir src-dir]
        :target-dir class-dir})
     (b/jar
       {:class-dir class-dir
-       :jar-file jar-file
-       :main 'cljstyle.main})
+       :jar-file  jar-file
+       :main      'cljstyle.main})
     (assoc opts :jar-file jar-file)))
 
 
 (defn install
   "Install a JAR into the local Maven repository."
   [opts]
-  (let [opts (-> opts clean jar)
+  (let [opts    (-> opts clean jar)
         version (:version opts)]
     (b/install
-      {:basis project-basis
-       :lib lib-name
-       :version (:tag version)
-       :jar-file (:jar-file opts)
+      {:basis     project-basis
+       :lib       lib-name
+       :version   (:tag version)
+       :jar-file  (:jar-file opts)
        :class-dir class-dir})
     (println "Installed version" (:tag version) "to local repository")
     opts))
@@ -246,21 +246,21 @@
 (defn deploy
   "Deploy the JAR to Clojars."
   [opts]
-  (let [opts (-> opts clean jar)
-        version (:version opts)
+  (let [opts           (-> opts clean jar)
+        version        (:version opts)
         signing-key-id (System/getenv "CLOJARS_SIGNING_KEY")
-        proceed? (or (:force opts)
-                     (and
-                       (or signing-key-id
-                           (do
-                             (print "No signing key specified - proceed without signature? [yN] ")
-                             (flush)
-                             (= "y" (str/lower-case (read-line)))))
-                       (do
-                         (printf "About to deploy version %s to Clojars - proceed? [yN] "
-                                 (:tag version))
-                         (flush)
-                         (= "y" (str/lower-case (read-line))))))]
+        proceed?       (or (:force opts)
+                           (and
+                             (or signing-key-id
+                                 (do
+                                   (print "No signing key specified - proceed without signature? [yN] ")
+                                   (flush)
+                                   (= "y" (str/lower-case (read-line)))))
+                             (do
+                               (printf "About to deploy version %s to Clojars - proceed? [yN] "
+                                       (:tag version))
+                               (flush)
+                               (= "y" (str/lower-case (read-line))))))]
     (if proceed?
       (d/deploy
         (-> opts
@@ -282,34 +282,34 @@
 (defn uberjar
   "Compile the Clojure source files and package all dependencies into an uberjar."
   [opts]
-  (let [version (version-info opts)
+  (let [version   (version-info opts)
         uber-file (io/file (:uber-file opts "target/cljstyle.jar"))
-        basis (:basis opts project-basis)]
+        basis     (:basis opts project-basis)]
     (when (or (not (.exists uber-file))
               (< (.lastModified uber-file)
                  (last-modified "deps.edn" resource-dir src-dir)))
       (println "Building uberjar...")
       (write-version-resource version)
       (b/copy-dir
-        {:src-dirs [resource-dir]
+        {:src-dirs   [resource-dir]
          :target-dir class-dir})
       (b/compile-clj
-        {:basis basis
-         :src-dirs [src-dir]
-         :class-dir class-dir
-         :java-opts ["-Dclojure.spec.skip-macros=true"]
-         :compile-opts {:elide-meta [:doc :file :line :added]
+        {:basis        basis
+         :src-dirs     [src-dir]
+         :class-dir    class-dir
+         :java-opts    ["-Dclojure.spec.skip-macros=true"]
+         :compile-opts {:elide-meta     [:doc :file :line :added]
                         :direct-linking true}
-         :bindings {#'clojure.core/*assert* false}})
+         :bindings     {#'clojure.core/*assert* false}})
       (b/uber
-        {:basis basis
+        {:basis     basis
          :class-dir class-dir
          :uber-file (str uber-file)
-         :main 'cljstyle.main
-         :manifest {"Implementation-Title" (name lib-name)
-                    "Implementation-Version" (:tag version)
-                    "Build-Commit" (:commit version)
-                    "Build-Date" (:date version)}}))
+         :main      'cljstyle.main
+         :manifest  {"Implementation-Title"   (name lib-name)
+                     "Implementation-Version" (:tag version)
+                     "Build-Commit"           (:commit version)
+                     "Build-Date"             (:date version)}}))
     (assoc opts
            :version version
            :uber-file uber-file)))
@@ -332,10 +332,10 @@
   Returns the options updated with a `:graal-native-image` setting on success."
   [opts]
   ;; Check vendor and version strings for GraalVM
-  (let [vendor (System/getProperty "java.vendor")
+  (let [vendor  (System/getProperty "java.vendor")
         version (System/getProperty "java.version")
-        major (when version
-                (parse-long (first (str/split version #"\."))))]
+        major   (when version
+                  (parse-long (first (str/split version #"\."))))]
     (when-not (and vendor (str/starts-with? vendor "GraalVM")
                    major (<= 21 major))
       (binding [*out* *err*]
@@ -344,7 +344,7 @@
         (println "Download from https://github.com/graalvm/graalvm-ce-builds/releases")
         (System/exit 2))))
   ;; We can now assume java.home is $GRAAL_HOME, check for the native-image tool
-  (let [graal-home (io/file (System/getProperty "java.home"))
+  (let [graal-home       (io/file (System/getProperty "java.home"))
         native-image-cmd (io/file graal-home "bin/native-image")]
     (when-not (.exists native-image-cmd)
       (binding [*out* *err*]
@@ -357,23 +357,23 @@
 (defn native-image
   "Compile the uberjar to a native image."
   [opts]
-  (let [opts (-> opts graal-check graal-uberjar)
-        args [(str (:graal-native-image opts))
-              "-jar" (str (:uber-file opts))
-              "-o" "target/graal/cljstyle"
-              "-march=compatibility"
-              "--no-fallback"
-              "--color=always"
+  (let [opts   (-> opts graal-check graal-uberjar)
+        args   [(str (:graal-native-image opts))
+                "-jar" (str (:uber-file opts))
+                "-o" "target/graal/cljstyle"
+                "-march=compatibility"
+                "--no-fallback"
+                "--color=always"
               ;; Verbose output if enabled.
               (when (:verbose opts)
-                ["--native-image-info"
-                 "--verbose"])
+                  ["--native-image-info"
+                   "--verbose"])
               ;; Static build flag
               (when (:graal-static opts)
-                ["--libc=musl"
+                  ["--libc=musl"
                  ;; see https://github.com/oracle/graal/issues/3398
                  "-H:CCompilerOption=-Wl,-z,stack-size=2097152"
-                 "--static"])]
+                   "--static"])]
         result (b/process {:command-args (remove nil? (flatten args))})]
     (when-not (zero? (:exit result))
       (binding [*out* *err*]

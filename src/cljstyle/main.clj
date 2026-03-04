@@ -55,9 +55,9 @@
 (defn -main
   "Main entry point."
   [& raw-args]
-  (let [parsed (cli/parse-opts raw-args cli-options)
+  (let [parsed           (cli/parse-opts raw-args cli-options)
         [command & args] (parsed :arguments)
-        options (parsed :options)]
+        options          (parsed :options)]
     ;; Print any option parse errors and abort.
     (when-let [errors (parsed :errors)]
       (binding [*out* *err*]

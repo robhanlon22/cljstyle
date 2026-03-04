@@ -19,17 +19,17 @@
 
 (deftest durations-table
   (is (empty? (#'u/durations-table nil)))
-  (is (= [{"rule" "foo"
+  (is (= [{"rule"    "foo"
            "subrule" "bar"
            "elapsed" "1.00 ms"
            "percent" "100.0%"}]
          (#'u/durations-table
           {:foo/bar 1000000})))
-  (is (= [{"rule" "foo"
+  (is (= [{"rule"    "foo"
            "subrule" "baz"
            "elapsed" "4.00 ms"
            "percent" "80.0%"}
-          {"rule" "foo"
+          {"rule"    "foo"
            "subrule" "bar"
            "elapsed" "1.00 ms"
            "percent" "20.0%"}]

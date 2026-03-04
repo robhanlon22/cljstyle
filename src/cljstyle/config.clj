@@ -336,24 +336,24 @@
 
 
 (def legacy-config
-  {:indentation? true
-   :list-indent-size 2
-   :indents default-indents
-   :line-break-vars? true
-   :line-break-functions? true
-   :reformat-types? true
-   :remove-surrounding-whitespace? true
-   :remove-trailing-whitespace? true
-   :insert-missing-whitespace? true
+  {:indentation?                    true
+   :list-indent-size                2
+   :indents                         default-indents
+   :line-break-vars?                true
+   :line-break-functions?           true
+   :reformat-types?                 true
+   :remove-surrounding-whitespace?  true
+   :remove-trailing-whitespace?     true
+   :insert-missing-whitespace?      true
    :remove-consecutive-blank-lines? true
-   :max-consecutive-blank-lines 2
-   :insert-padding-lines? true
-   :padding-lines 2
-   :rewrite-namespaces? true
-   :single-import-break-width 30
-   :require-eof-newline? true
-   :file-pattern #"\.clj[csx]?$"
-   :file-ignore #{}})
+   :max-consecutive-blank-lines     2
+   :insert-padding-lines?           true
+   :padding-lines                   2
+   :rewrite-namespaces?             true
+   :single-import-break-width       30
+   :require-eof-newline?            true
+   :file-pattern                    #"\.clj[csx]?$"
+   :file-ignore                     #{}})
 
 
 (def new-config
@@ -368,38 +368,38 @@
 
    :rules
    {:indentation
-    {:enabled? true
+    {:enabled?    true
      :list-indent 2
-     :indents default-indents}
+     :indents     default-indents}
 
     :align
-    {:enabled? false
-     :targets default-align-targets
+    {:enabled?            false
+     :targets             default-align-targets
      :extra-binding-forms []
-     :extra-clause-forms {}
-     :exclude-forms #{}
-     :indent-comments? true}
+     :extra-clause-forms  {}
+     :exclude-forms       #{}
+     :indent-comments?    true}
 
     :whitespace
-    {:enabled? true
+    {:enabled?            true
      :remove-surrounding? true
-     :remove-trailing? true
-     :insert-missing? true}
+     :remove-trailing?    true
+     :insert-missing?     true}
 
     :blank-lines
-    {:enabled? true
+    {:enabled?          true
      :trim-consecutive? true
-     :max-consecutive 2
-     :insert-padding? true
-     :padding-lines 2}
+     :max-consecutive   2
+     :insert-padding?   true
+     :padding-lines     2}
 
     :eof-newline
-    {:enabled? true
+    {:enabled?         true
      :trailing-blanks? false}
 
     :comments
-    {:enabled? true
-     :inline-prefix " "
+    {:enabled?       true
+     :inline-prefix  " "
      :leading-prefix "; "}
 
     :vars
@@ -409,16 +409,16 @@
     {:enabled? true}
 
     :types
-    {:enabled? true
-     :types? true
+    {:enabled?   true
+     :types?     true
      :protocols? true
-     :reifies? true
-     :proxies? true}
+     :reifies?   true
+     :proxies?   true}
 
     :namespaces
-    {:enabled? true
-     :indent-size 2
-     :break-libs? true
+    {:enabled?           true
+     :indent-size        2
+     :break-libs?        true
      :import-break-width 60}}})
 
 
@@ -504,12 +504,12 @@
    (letfn [(merge-values
              [x y]
              (cond
-               (:replace (meta y)) y
+               (:replace (meta y))  y
                (:displace (meta x)) y
-               (sequential? x) (if (:concat (meta y)) (into x y) y)
-               (set? x) (into x y)
-               (map? x) (merge-with merge-values x y)
-               :else y))]
+               (sequential? x)      (if (:concat (meta y)) (into x y) y)
+               (set? x)             (into x y)
+               (map? x)             (merge-with merge-values x y)
+               :else                y))]
      (with-meta
        (merge-with merge-values a b)
        (update (meta a) ::paths (fnil into []) (source-paths b)))))
@@ -566,15 +566,15 @@
   dir (a.k.a. the user.dir System property)."
   [^File file]
   (let [canonical-path (.. file getCanonicalFile toPath)
-        working-path (Paths/get (System/getProperty "user.dir")
-                                (into-array String []))]
+        working-path   (Paths/get (System/getProperty "user.dir")
+                                  (into-array String []))]
     (str (.relativize working-path canonical-path))))
 
 
 (defn ignored?
   "True if the file should be ignored."
   [config ignores ^File file]
-  (let [filename (.getName file)
+  (let [filename      (.getName file)
         relative-path (path-relative-to-user-dir file)]
     (->>
       (get-in config [:files :ignore])
@@ -618,12 +618,12 @@
   "Read a configuration file. Throws an exception if the read fails or the
   contents are not valid configuration settings."
   [^File file]
-  (let [path (.getAbsolutePath file)
+  (let [path       (.getAbsolutePath file)
         raw-config (read-config* file)
-        config (if (legacy? raw-config)
-                 (do (swap! legacy-files conj file)
-                     (translate-legacy raw-config))
-                 raw-config)]
+        config     (if (legacy? raw-config)
+                     (do (swap! legacy-files conj file)
+                         (translate-legacy raw-config))
+                     raw-config)]
     (when-not (s/valid? ::config config)
       (throw (ex-info (str "Invalid configuration loaded from file: " path
                            "\n" (s/explain-str ::config config))
@@ -658,8 +658,8 @@
   [start limit]
   {:pre [start (pos-int? limit)]}
   (loop [configs ()
-         dir (canonical-dir start)
-         limit limit]
+         dir     (canonical-dir start)
+         limit   limit]
     (if (and (pos? limit) (directory? dir) (readable? dir))
       ;; Look for config file and recurse upward.
       (recur (if-let [config (dir-config dir)]

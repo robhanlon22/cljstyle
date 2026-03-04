@@ -6,8 +6,8 @@
 
 
 (def default-config
-  {:enabled? true
-   :inline-prefix " "
+  {:enabled?       true
+   :inline-prefix  " "
    :leading-prefix "; "})
 
 

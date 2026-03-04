@@ -84,7 +84,7 @@
   given path. Suppresses stdout and stderr."
   [n path]
   `(prof/profile
-     {:event :cpu
+     {:event     :cpu
       :transform massage-stack}
      (dotimes [_# ~n]
        (try

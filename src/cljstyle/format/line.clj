@@ -11,7 +11,7 @@
 (defn- count-newlines
   "Count the number of consecutive blank lines at this location."
   [zloc]
-  (loop [zloc zloc
+  (loop [zloc     zloc
          newlines 0]
     (if (z/linebreak? zloc)
       (recur (-> zloc z/right* zl/skip-whitespace)

@@ -22,7 +22,7 @@
   [^java.util.Map durations rule-key sub-key elapsed]
   (when (pos? elapsed)
     (let [duration-key (keyword (name rule-key) (name (or sub-key "all")))
-          prev-dur (or (.get durations duration-key) 0)]
+          prev-dur     (or (.get durations duration-key) 0)]
       (.put durations duration-key (+ prev-dur elapsed)))))
 
 
@@ -30,7 +30,7 @@
   "True if the given sub-rule is enabled in the config."
   [rules-config rule]
   (let [[rule-key sub-key] rule
-        rule-config (get rules-config rule-key)]
+        rule-config        (get rules-config rule-key)]
     (and (:enabled? rule-config)
          (or (nil? sub-key)
              (get rule-config (keyword (str (name sub-key) "?")))))))
@@ -43,10 +43,10 @@
   (reduce
     (fn test-rule
       [_ [rule-key sub-key match? _ :as rule]]
-      (let [start (System/nanoTime)
+      (let [start       (System/nanoTime)
             rule-config (get rules-config rule-key)
-            matches? (match? zloc rule-config)
-            elapsed (- (System/nanoTime) start)]
+            matches?    (match? zloc rule-config)
+            elapsed     (- (System/nanoTime) start)]
         (record-elapsed! durations rule-key sub-key elapsed)
         (when matches?
           (reduced rule))))
@@ -58,12 +58,12 @@
   "Apply the rule to the current location, returning the updated zipper."
   [zloc rule rules-config durations]
   (let [[rule-key sub-key _ edit] rule
-        rule-config (get rules-config rule-key)
-        start (System/nanoTime)
-        zloc' (if (= :align rule-key)
-                (zl/safe-edit edit zloc rule-config rules-config)
-                (zl/safe-edit edit zloc rule-config))
-        elapsed (- (System/nanoTime) start)]
+        rule-config               (get rules-config rule-key)
+        start                     (System/nanoTime)
+        zloc'                     (if (= :align rule-key)
+                                    (zl/safe-edit edit zloc rule-config rules-config)
+                                    (zl/safe-edit edit zloc rule-config))
+        elapsed                   (- (System/nanoTime) start)]
     (record-elapsed! durations rule-key sub-key elapsed)
     zloc'))
 
@@ -159,7 +159,7 @@
   (let [formatted (-> form-string
                       (parser/parse-string-all)
                       (reformat-form rules-config))]
-    {:original form-string
+    {:original  form-string
      :formatted (n/string formatted)
      :durations (::durations (meta formatted))}))
 

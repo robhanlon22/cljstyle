@@ -58,28 +58,28 @@
 
 (def ^:private builtin-clause-forms
   {;; Unqualified built-ins.
-   "are" 2
-   "case" 1
-   "cond" 0
-   "cond->" 1
+   "are"     2
+   "case"    1
+   "cond"    0
+   "cond->"  1
    "cond->>" 1
-   "condp" 2
+   "condp"   2
 
    ;; Qualified Clojure built-ins.
-   "clojure.core/case" 1
-   "clojure.core/cond" 0
-   "clojure.core/cond->" 1
+   "clojure.core/case"    1
+   "clojure.core/cond"    0
+   "clojure.core/cond->"  1
    "clojure.core/cond->>" 1
-   "clojure.core/condp" 2
-   "clojure.test/are" 2
+   "clojure.core/condp"   2
+   "clojure.test/are"     2
 
    ;; Qualified ClojureScript built-ins.
-   "cljs.core/case" 1
-   "cljs.core/cond" 0
-   "cljs.core/cond->" 1
+   "cljs.core/case"    1
+   "cljs.core/cond"    0
+   "cljs.core/cond->"  1
    "cljs.core/cond->>" 1
-   "cljs.core/condp" 2
-   "cljs.test/are" 2})
+   "cljs.core/condp"   2
+   "cljs.test/are"     2})
 
 
 (def ^:private default-targets
@@ -87,12 +87,12 @@
 
 
 (def ^:private default-rule-config
-  {:enabled? false
-   :targets default-targets
+  {:enabled?            false
+   :targets             default-targets
    :extra-binding-forms []
-   :extra-clause-forms {}
-   :indent-comments? true
-   :exclude-forms #{}})
+   :extra-clause-forms  {}
+   :indent-comments?    true
+   :exclude-forms       #{}})
 
 
 (defn- normalize-config
@@ -100,12 +100,12 @@
 
   Built-in and custom form sets are merged, then excluded forms are removed."
   [rule-config]
-  (let [config (merge default-rule-config rule-config)
-        excluded (set (:exclude-forms config))
-        binding-form-set (set/difference
-                           (set (concat builtin-binding-forms
-                                        (:extra-binding-forms config)))
-                           excluded)
+  (let [config            (merge default-rule-config rule-config)
+        excluded          (set (:exclude-forms config))
+        binding-form-set  (set/difference
+                            (set (concat builtin-binding-forms
+                                         (:extra-binding-forms config)))
+                            excluded)
         clause-form-skips (apply dissoc
                                  (merge builtin-clause-forms
                                         (:extra-clause-forms config))
@@ -169,16 +169,16 @@
 
   For multiline nodes, this returns the width of the final physical line."
   [zloc]
-  (let [[_ col] (z/position zloc)
-        right (z/right* zloc)
+  (let [[_ col]     (z/position zloc)
+        right       (z/right* zloc)
         node-string (zl/zstr zloc)
         comma-width (if (comma-node? right)
                       (count (n/string (z/node right)))
                       0)
-        line-break (str/last-index-of node-string "\n")
-        line-width (if line-break
-                     (- (count node-string) (inc line-break))
-                     (+ (dec col) (count node-string)))]
+        line-break  (str/last-index-of node-string "\n")
+        line-width  (if line-break
+                      (- (count node-string) (inc line-break))
+                      (+ (dec col) (count node-string)))]
     (+ line-width comma-width)))
 
 
@@ -200,8 +200,8 @@
     (cond
       (zl/space? left)
       (let [left-space-width (-> left z/node n/string count)
-            delta (spacing-delta delta true left-space-width)
-            width (+ left-space-width delta)]
+            delta            (spacing-delta delta true left-space-width)
+            width            (+ left-space-width delta)]
         (z/right* (z/replace* left (n/spaces width))))
 
       :else
@@ -230,7 +230,7 @@
             (= (first (z/position comment-loc))
                (first (z/position parent))))
       comment-loc
-      (let [next-loc (next-form-node comment-loc)
+      (let [next-loc      (next-form-node comment-loc)
             target-column (when next-loc (start-column next-loc))]
         (if (pos-int? target-column)
           (adjust-left-spacing
@@ -263,7 +263,7 @@
                 content-loc)))
           (pad-continuation-line
             [line-node]
-            (let [line-node (adjust-left-spacing line-node padding)
+            (let [line-node     (adjust-left-spacing line-node padding)
                   first-content (find-first-line-content line-node)]
               (if (and indent-comments?
                        (zl/comment? first-content))
@@ -282,7 +282,7 @@
 
   Applies the same delta to multiline continuation lines."
   [zloc target-column indent-comments?]
-  (let [padding (- target-column (start-column zloc))
+  (let [padding     (- target-column (start-column zloc))
         pad-subtree (fn [subtree-loc]
                       (pad-multiline-continuations
                         subtree-loc
@@ -305,8 +305,8 @@
   "Advance scanner state across a newline, resetting row/column as needed."
   [state newline-loc preserve-prev-on-newline?]
   (let [{:keys [group-id row-id line-has-content? prev-column prev-cell-id]} state
-        group-break? (starts-new-alignment-group? newline-loc line-has-content?)
-        keep-previous? (and (not group-break?) preserve-prev-on-newline?)]
+        group-break?                                                         (starts-new-alignment-group? newline-loc line-has-content?)
+        keep-previous?                                                       (and (not group-break?) preserve-prev-on-newline?)]
     (assoc state
            :node-loc (z/right* newline-loc)
            :group-id (if group-break? (inc group-id) group-id)
@@ -322,36 +322,36 @@
   [state node-loc]
   (let [{:keys [group-id row-id column prev-column prev-cell-id next-cell-id
                 cells! cells-by-column! constraints! max-column-by-group!]} state
-        cell-id next-cell-id
-        start (start-column node-loc)
-        end (node-end-position node-loc)
-        left-space-width (node-left-space-width node-loc)
-        has-left-space? (some? left-space-width)
-        cell {:group-id group-id
-              :row-id row-id
-              :column column
-              :start start
-              :end end
-              :has-left-space? has-left-space?
-              :left-space-width (or left-space-width 0)}
-        cells! (assoc! cells! cell-id cell)
-        column-key [group-id column]
-        cells-by-column! (assoc!
-                           cells-by-column!
-                           column-key
-                           (conj (get cells-by-column! column-key []) cell-id))
-        constraints! (if (some? prev-column)
-                       (let [destination-key [group-id (inc prev-column)]]
-                         (assoc!
-                           constraints!
-                           destination-key
-                           (conj (get constraints! destination-key []) prev-cell-id)))
-                       constraints!)
-        max-column-by-group! (assoc!
-                               max-column-by-group!
-                               group-id
-                               (max column
-                                    (get max-column-by-group! group-id -1)))]
+        cell-id                                                             next-cell-id
+        start                                                               (start-column node-loc)
+        end                                                                 (node-end-position node-loc)
+        left-space-width                                                    (node-left-space-width node-loc)
+        has-left-space?                                                     (some? left-space-width)
+        cell                                                                {:group-id         group-id
+                                                                             :row-id           row-id
+                                                                             :column           column
+                                                                             :start            start
+                                                                             :end              end
+                                                                             :has-left-space?  has-left-space?
+                                                                             :left-space-width (or left-space-width 0)}
+        cells!                                                              (assoc! cells! cell-id cell)
+        column-key                                                          [group-id column]
+        cells-by-column!                                                    (assoc!
+                                                                              cells-by-column!
+                                                                              column-key
+                                                                              (conj (get cells-by-column! column-key []) cell-id))
+        constraints!                                                        (if (some? prev-column)
+                                                                              (let [destination-key [group-id (inc prev-column)]]
+                                                                                (assoc!
+                                                                                  constraints!
+                                                                                  destination-key
+                                                                                  (conj (get constraints! destination-key []) prev-cell-id)))
+                                                                              constraints!)
+        max-column-by-group!                                                (assoc!
+                                                                              max-column-by-group!
+                                                                              group-id
+                                                                              (max column
+                                                                                   (get max-column-by-group! group-id -1)))]
     (assoc state
            :node-loc (z/right* node-loc)
            :column (inc column)
@@ -368,18 +368,18 @@
 (defn- collect-alignment-model
   "Scan nodes into alignment cells and adjacency constraints."
   [start {:keys [preserve-prev-on-newline?]
-          :or {preserve-prev-on-newline? false}}]
-  (loop [state {:node-loc start
-                :group-id 0
-                :row-id 0
-                :column 0
-                :prev-column nil
-                :prev-cell-id nil
-                :line-has-content? false
-                :next-cell-id 0
-                :cells! (transient {})
-                :cells-by-column! (transient {})
-                :constraints! (transient {})
+          :or   {preserve-prev-on-newline? false}}]
+  (loop [state {:node-loc             start
+                :group-id             0
+                :row-id               0
+                :column               0
+                :prev-column          nil
+                :prev-cell-id         nil
+                :line-has-content?    false
+                :next-cell-id         0
+                :cells!               (transient {})
+                :cells-by-column!     (transient {})
+                :constraints!         (transient {})
                 :max-column-by-group! (transient {})}]
     (if-let [node-loc (:node-loc state)]
       (cond
@@ -404,9 +404,9 @@
 
         :else
         (recur (register-substantive-cell state node-loc)))
-      {:cells (persistent! (:cells! state))
-       :cells-by-column (persistent! (:cells-by-column! state))
-       :constraints (persistent! (:constraints! state))
+      {:cells               (persistent! (:cells! state))
+       :cells-by-column     (persistent! (:cells-by-column! state))
+       :constraints         (persistent! (:constraints! state))
        :max-column-by-group (persistent! (:max-column-by-group! state))})))
 
 
@@ -417,7 +417,7 @@
     (reduce
       (fn [max-target source-cell-id]
         (let [{:keys [row-id end]} (get cells source-cell-id)
-              shifted-end (+ end (get row-shift row-id 0))]
+              shifted-end          (+ end (get row-shift row-id 0))]
           (max max-target (inc shifted-end))))
       0
       source-cell-ids)))
@@ -432,10 +432,10 @@
             (get cells cell-id)
             shifted-start (+ start (get row-shift row-id 0))
             desired-delta (- target-column shifted-start)
-            actual-delta (spacing-delta
-                           desired-delta
-                           has-left-space?
-                           left-space-width)]
+            actual-delta  (spacing-delta
+                            desired-delta
+                            has-left-space?
+                            left-space-width)]
         (if (zero? actual-delta)
           row-shift
           (update row-shift row-id (fnil + 0) actual-delta))))
@@ -447,22 +447,22 @@
   "Plan destination columns for one alignment group."
   [plan group-id max-column cells cells-by-column constraints]
   (loop [destination-column 1
-         row-shift {}
-         plan plan]
+         row-shift          {}
+         plan               plan]
     (if (> destination-column max-column)
       plan
       (let [source-cell-ids (get constraints [group-id destination-column])
-            target-column (required-target-column source-cell-ids cells row-shift)]
+            target-column   (required-target-column source-cell-ids cells row-shift)]
         (if (nil? target-column)
           (recur (inc destination-column) row-shift plan)
           (let [destination-cell-ids (get cells-by-column
                                           [group-id destination-column]
                                           [])
-                row-shift (update-row-shifts
-                            row-shift
-                            destination-cell-ids
-                            target-column
-                            cells)]
+                row-shift            (update-row-shifts
+                                       row-shift
+                                       destination-cell-ids
+                                       target-column
+                                       cells)]
             (recur (inc destination-column)
                    row-shift
                    (assoc plan [group-id destination-column] target-column))))))))
@@ -510,11 +510,11 @@
 (defn- apply-column-targets
   "Apply precomputed column targets while preserving group boundaries."
   [start plan {:keys [indent-comments?]}]
-  (loop [state {:node-loc start
-                :group-id 0
-                :column 0
+  (loop [state {:node-loc          start
+                :group-id          0
+                :column            0
                 :line-has-content? false
-                :last-loc start}]
+                :last-loc          start}]
     (if-let [node-loc (:node-loc state)]
       (cond
         (zl/space? node-loc)
@@ -585,9 +585,9 @@
 
           :else
           matcher)))
-    {:exact {}
+    {:exact       {}
      :unqualified {}
-     :patterns []}
+     :patterns    []}
     (sort-by
       (fn [[rule-key _]]
         (cond
@@ -614,8 +614,8 @@
 
   Precedence: exact symbol, unqualified symbol, regex pattern, then config map."
   [head-string skip-matcher clause-form-skips]
-  (let [head-sym (symbol head-string)
-        base-sym (symbol (name head-sym))
+  (let [head-sym                             (symbol head-string)
+        base-sym                             (symbol (name head-sym))
         {:keys [exact unqualified patterns]} skip-matcher]
     (or
       (get exact head-sym)
@@ -633,7 +633,7 @@
   "Locate the first clause node eligible for clause-style alignment."
   [zloc skip-matcher clause-form-skips]
   (let [head-string (-> zloc first-form-node z/string)
-        skip-count (resolve-clause-skip-count head-string skip-matcher clause-form-skips)]
+        skip-count  (resolve-clause-skip-count head-string skip-matcher clause-form-skips)]
     (loop [zloc (-> zloc first-form-node next-form-node)
            skip skip-count]
       (if (and zloc (pos? skip))
@@ -700,8 +700,8 @@
     (first-form-node zloc)
 
     :else
-    (let [skip-matcher (clause-skip-matcher
-                         (get-in rules-config [:indentation :indents]))
+    (let [skip-matcher      (clause-skip-matcher
+                              (get-in rules-config [:indentation :indents]))
           clause-form-skips (:clause-form-skips rule-config)]
       (first-alignable-clause-node zloc skip-matcher clause-form-skips))))
 
@@ -713,19 +713,19 @@
   ([zloc rule-config]
    (align-node zloc rule-config nil))
   ([zloc rule-config rules-config]
-   (let [rule-config (effective-config rule-config)
-         rules-config (or rules-config {})
+   (let [rule-config    (effective-config rule-config)
+         rules-config   (or rules-config {})
          alignment-kind (node-alignment-kind zloc rule-config)
-         start (resolve-start-node-for-kind
-                 zloc
-                 alignment-kind
-                 rule-config
-                 rules-config)]
+         start          (resolve-start-node-for-kind
+                          zloc
+                          alignment-kind
+                          rule-config
+                          rules-config)]
      (if start
        (let [model (collect-alignment-model
                      start
                      {:preserve-prev-on-newline? (= :clause alignment-kind)})
-             plan (plan-column-targets model)]
+             plan  (plan-column-targets model)]
          (-> (apply-column-targets start plan rule-config)
              z/up))
        zloc))))

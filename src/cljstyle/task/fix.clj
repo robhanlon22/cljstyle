@@ -17,18 +17,18 @@
 (defn- fix-source
   "Fix a single source file and produce a result."
   [config path file]
-  (let [original (slurp file)
-        result (format/reformat-file* original (:rules config))
+  (let [original  (slurp file)
+        result    (format/reformat-file* original (:rules config))
         formatted (:formatted result)
         durations (:durations result)]
     (if (= original formatted)
-      {:type :correct
-       :debug (str "Source file " path " is formatted correctly")
+      {:type      :correct
+       :debug     (str "Source file " path " is formatted correctly")
        :durations durations}
       (do
         (spit file formatted)
-        {:type :fixed
-         :info (str "Reformatting source file " path)
+        {:type      :fixed
+         :info      (str "Reformatting source file " path)
          :durations durations}))))
 
 
@@ -36,7 +36,7 @@
   "Implementation of the `fix` command."
   [paths]
   (let [results (process/process-files! fix-source paths)
-        counts (:counts results)]
+        counts  (:counts results)]
     (u/report-stats results)
     (u/warn-legacy-config)
     (when-not (empty? (:errors results))

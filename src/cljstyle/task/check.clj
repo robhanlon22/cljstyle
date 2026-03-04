@@ -38,7 +38,7 @@
   "Compare the two strings and return a diff from `DiffUtils`."
   [path original revised]
   (let [original-lines (str/split original #"\n")
-        revised-lines (str/split revised #"\n")]
+        revised-lines  (str/split revised #"\n")]
     (str/join
       "\n"
       (DiffUtils/generateUnifiedDiff
@@ -53,11 +53,11 @@
   "Special-case diff construction when dealing with two strings which only
   differ by a 'tail' of blank lines."
   [path original revised]
-  (let [diff (diff-lines path original (str revised "x"))
-        lines (butlast (str/split diff #"\n"))
-        header (str/join "\n" (butlast lines))
+  (let [diff      (diff-lines path original (str revised "x"))
+        lines     (butlast (str/split diff #"\n"))
+        header    (str/join "\n" (butlast lines))
         last-line (last lines)
-        delta (- (count revised) (count original))]
+        delta     (- (count revised) (count original))]
     (if (= 1 delta)
       ;; Special case where we added a newline to the end of the text.
       (str header "\n"
@@ -117,29 +117,29 @@
 (defn- check-source
   "Check a single source file and produce a result."
   [config path file]
-  (let [original (slurp file)
-        result (format/reformat-file* original (:rules config))
+  (let [original  (slurp file)
+        result    (format/reformat-file* original (:rules config))
         formatted (:formatted result)
         durations (:durations result)]
     (if (= original formatted)
-      {:type :correct
-       :debug (str "Source file " path " is formatted correctly")
+      {:type      :correct
+       :debug     (str "Source file " path " is formatted correctly")
        :durations durations}
       (let [diff (unified-diff path original formatted)]
-        {:type :incorrect
-         :debug (str "Source file " path " is formatted incorrectly")
-         :info (cond-> diff
-                 (not (u/option :no-color))
-                 (colorize-diff))
+        {:type       :incorrect
+         :debug      (str "Source file " path " is formatted incorrectly")
+         :info       (cond-> diff
+                       (not (u/option :no-color))
+                       (colorize-diff))
          :diff-lines (count-changes diff)
-         :durations durations}))))
+         :durations  durations}))))
 
 
 (defn task
   "Implementation of the `check` command."
   [paths]
   (let [results (process/process-files! check-source paths)
-        counts (:counts results)]
+        counts  (:counts results)]
     (u/report-stats results)
     (u/warn-legacy-config)
     (when-not (empty? (:errors results))

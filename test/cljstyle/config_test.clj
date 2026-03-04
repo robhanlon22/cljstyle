@@ -50,12 +50,12 @@
     (is (valid? :cljstyle.config.rules/align {:exclude-forms #{"case" "cond"}}))
     (is (valid? :cljstyle.config.rules/align {:indent-comments? false}))
     (is (valid? :cljstyle.config.rules/align
-                {:enabled? true
-                 :targets #{:maps :bindings :clauses :reader-conditionals}
+                {:enabled?            true
+                 :targets             #{:maps :bindings :clauses :reader-conditionals}
                  :extra-binding-forms ["my-let" "my/let"]
-                 :extra-clause-forms {"my-cond" 0 "my/case-like" 1}
-                 :exclude-forms #{"case" "cond"}
-                 :indent-comments? true})))
+                 :extra-clause-forms  {"my-cond" 0 "my/case-like" 1}
+                 :exclude-forms       #{"case" "cond"}
+                 :indent-comments?    true})))
   (testing "file-ignore"
     (is (invalid? :cljstyle.config.files/ignore 123))
     (is (invalid? :cljstyle.config.files/ignore ["foo"]))
@@ -74,12 +74,12 @@
     (is (valid? ::config/config
                 {:rules
                  {:align
-                  {:enabled? true
-                   :targets #{:maps :bindings :clauses :reader-conditionals}
+                  {:enabled?            true
+                   :targets             #{:maps :bindings :clauses :reader-conditionals}
                    :extra-binding-forms ["my-let" "my/let"]
-                   :extra-clause-forms {"my-cond" 0 "my/case-like" 1}
-                   :exclude-forms #{"case" "cond"}
-                   :indent-comments? true}}}))
+                   :extra-clause-forms  {"my-cond" 0 "my/case-like" 1}
+                   :exclude-forms       #{"case" "cond"}
+                   :indent-comments?    true}}}))
     (is (invalid? ::config/config
                   {:rules {:align {:targets #{:unknown}}}}))
     (is (valid? ::config/config {:something-else 123}))
@@ -92,12 +92,12 @@
     (is (= {:indentation? true}
            (config/merge-settings
              {:indentation? true})))
-    (is (= {:indentation? true
+    (is (= {:indentation?                true
             :remove-trailing-whitespace? true}
            (config/merge-settings
              {:indentation? true}
              {:remove-trailing-whitespace? true})))
-    (is (= {:indentation? false
+    (is (= {:indentation?                false
             :remove-trailing-whitespace? true}
            (config/merge-settings
              {:indentation? true}
@@ -146,7 +146,7 @@
 
 (deftest file-predicates
   (let [test-dir (io/file "target/test-config/predicates")
-        foo-clj (io/file test-dir "foo.clj")]
+        foo-clj  (io/file test-dir "foo.clj")]
     (try
       (io/make-parents foo-clj)
       (.deleteOnExit foo-clj)

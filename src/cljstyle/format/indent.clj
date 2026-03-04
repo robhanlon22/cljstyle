@@ -11,10 +11,10 @@
 
 (def ^:private start-element
   "Special symbols which precede certain types of elements."
-  {:meta "^", :meta* "#^", :vector "[",       :map "{"
-   :list "(", :eval "#=",  :uneval "#_",      :fn "#("
-   :set "#{", :deref "@",  :reader-macro "#", :unquote "~"
-   :var "#'", :quote "'",  :syntax-quote "`", :unquote-splicing "~@",
+  {:meta           "^",  :meta* "#^", :vector       "[",  :map              "{"
+   :list           "(",  :eval  "#=", :uneval       "#_", :fn               "#("
+   :set            "#{", :deref "@",  :reader-macro "#",  :unquote          "~"
+   :var            "#'", :quote "'",  :syntax-quote "`",  :unquote-splicing "~@",
    :namespaced-map "#"})
 
 
@@ -65,7 +65,7 @@
   (loop [zloc     zloc
          worklist '()]
     (if-let [p (z/left* zloc)]
-      (let [s (zl/zstr p)
+      (let [s            (zl/zstr p)
             new-worklist (cons s worklist)]
         (if-not (str/includes? s "\n")
           (recur p new-worklist)
@@ -192,12 +192,12 @@
   location."
   [rule-config]
   (let [list-indent-size (:list-indent rule-config 2)
-        indenters (->> (:indents rule-config)
-                       (sort-by indent-order)
-                       (mapv (partial rule-indenter list-indent-size)))]
+        indenters        (->> (:indents rule-config)
+                              (sort-by indent-order)
+                              (mapv (partial rule-indenter list-indent-size)))]
     (fn indent-amount
       [zloc]
-      (let [up (z/up zloc)
+      (let [up  (z/up zloc)
             tag (z/tag up)]
         (cond
           (zl/reader-conditional? (z/up up))
@@ -289,11 +289,11 @@
   conditional block. Returns nil if the rule does not apply."
   [zloc rule-key idx]
   (when (indent-matches? rule-key (zl/form-symbol-full zloc))
-    (let [zloc-idx (index-of zloc)
+    (let [zloc-idx      (index-of zloc)
           leading-forms (if (some-> zloc (nth-form idx) first-form-in-line?)
                           0
                           idx)
-          indent (inner-indent zloc rule-key 0 nil)]
+          indent        (inner-indent zloc rule-key 0 nil)]
       (if (even? (- zloc-idx leading-forms))
         (+ indent indent-size)
         indent))))

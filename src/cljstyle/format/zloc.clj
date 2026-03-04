@@ -271,16 +271,16 @@
 (defn- format-error
   "Construct an exception representing a formatting error caused by the function `f`."
   [problem f zloc cause]
-  (let [fn-name (clojure.lang.Compiler/demunge (.getName (class f)))
+  (let [fn-name    (clojure.lang.Compiler/demunge (.getName (class f)))
         [line col] (z/position zloc)
-        form (z/string zloc)]
+        form       (z/string zloc)]
     (ex-info (format "Formatter %s at position %d:%d while calling %s"
                      problem line col fn-name)
-             {:type :cljstyle/format-error
-              :fn fn-name
-              :line line
+             {:type   :cljstyle/format-error
+              :fn     fn-name
+              :line   line
               :column col
-              :form form}
+              :form   form}
              cause)))
 
 

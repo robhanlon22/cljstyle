@@ -179,8 +179,8 @@
     ;; any longer
     :else
     (let [elapsed-sec (/ elapsed 1000.0)
-          minutes (long (/ elapsed-sec 60))
-          seconds (long (rem elapsed-sec 60))]
+          minutes     (long (/ elapsed-sec 60))
+          seconds     (long (rem elapsed-sec 60))]
       (format "%d:%02d" minutes seconds))))
 
 
@@ -193,7 +193,7 @@
          (sort-by val (comp - compare))
          (mapv (fn duration-row
                  [[rule-key duration]]
-                 {"rule" (namespace rule-key)
+                 {"rule"    (namespace rule-key)
                   "subrule" (name rule-key)
                   "elapsed" (duration-str (/ duration 1e6))
                   "percent" (if (pos? total)
@@ -204,23 +204,23 @@
 (defn report-stats
   "General result reporting logic."
   [results]
-  (let [counts (:counts results)
-        elapsed (:elapsed results)
-        total-files (apply + (vals counts))
+  (let [counts          (:counts results)
+        elapsed         (:elapsed results)
+        total-files     (apply + (vals counts))
         total-processed (count (:results results))
-        total-size (apply + (keep :size (vals (:results results))))
-        diff-lines (apply + (keep :diff-lines (vals (:results results))))
-        durations (->> (vals (:results results))
-                       (keep :durations)
-                       (apply merge-with +))
-        stats (cond-> {:files counts
-                       :total total-files
-                       :elapsed (:elapsed results)}
-                (pos? diff-lines)
-                (assoc :diff-lines diff-lines)
+        total-size      (apply + (keep :size (vals (:results results))))
+        diff-lines      (apply + (keep :diff-lines (vals (:results results))))
+        durations       (->> (vals (:results results))
+                             (keep :durations)
+                             (apply merge-with +))
+        stats           (cond-> {:files   counts
+                                 :total   total-files
+                                 :elapsed (:elapsed results)}
+                          (pos? diff-lines)
+                          (assoc :diff-lines diff-lines)
 
-                (seq durations)
-                (assoc :durations durations))]
+                          (seq durations)
+                          (assoc :durations durations))]
     (log (pr-str stats))
     (when (or (option :report) (option :verbose))
       (printf "Checked %d of %d files in %s (%.1f fps)\n"
