@@ -1,6 +1,7 @@
 (ns cljstyle.format.core
   "Core formatting logic which ties together all rules."
   (:require
+    [cljstyle.format.align :as align]
     [cljstyle.format.comment :as comment]
     [cljstyle.format.fn :as fn]
     [cljstyle.format.indent :as indent]
@@ -59,7 +60,9 @@
   (let [[rule-key sub-key _ edit] rule
         rule-config (get rules-config rule-key)
         start (System/nanoTime)
-        zloc' (zl/safe-edit edit zloc rule-config)
+        zloc' (if (= :align rule-key)
+                (zl/safe-edit edit zloc rule-config rules-config)
+                (zl/safe-edit edit zloc rule-config))
         elapsed (- (System/nanoTime) start)]
     (record-elapsed! durations rule-key sub-key elapsed)
     zloc'))
@@ -105,7 +108,24 @@
 (defn reformat-form
   "Apply formatting rules to the given form."
   [form rules-config]
-  (let [durations (java.util.TreeMap.)]
+  (let [durations (java.util.TreeMap.)
+        apply-indent-and-align-rules
+        (fn [formatted]
+          (if (get-in rules-config [:align :enabled?])
+            (-> formatted
+                (apply-walk-rules
+                  [indent/reindent-lines]
+                  rules-config
+                  durations)
+                (apply-walk-rules
+                  [align/align-columns ws/remove-trailing]
+                  rules-config
+                  durations))
+            (apply-walk-rules
+              formatted
+              [indent/reindent-lines ws/remove-trailing]
+              rules-config
+              durations)))]
     (-> form
         (apply-walk-rules
           [ws/remove-surrounding
@@ -125,11 +145,7 @@
            ns/format-namespaces]
           rules-config
           durations)
-        (apply-walk-rules
-          [indent/reindent-lines
-           ws/remove-trailing]
-          rules-config
-          durations)
+        (apply-indent-and-align-rules)
         (vary-meta assoc ::durations (into {} durations)))))
 
 

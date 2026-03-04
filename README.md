@@ -184,7 +184,17 @@ The `cljstyle` tool comes with a sensible set of default configuration built-in
 and may additionally be configured by using a hierarchy of `.cljstyle` files in
 the source tree. The [configuration settings](doc/configuration.md) include
 toggles for format rules, width constraints, and the
-[indentation rules](doc/indentation.md).
+[indentation rules](doc/indentation.md). You can also opt into vertical
+alignment with the `:rules {:align ...}` configuration, for example:
+
+```clojure
+{:rules
+ {:align
+  {:enabled? true}}}
+```
+
+See [`:align` in `doc/configuration.md`](doc/configuration.md) for all defaults
+and options.
 
 
 ## Ignoring Forms

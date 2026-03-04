@@ -103,6 +103,71 @@ leading spaces on each line.
   A map of indentation patterns to vectors of rules to apply to the matching
   forms. See the [indentation doc](indentation.md) for details.
 
+### `:align`
+
+This opt-in rule applies vertical alignment to associative forms. By default it
+aligns maps, let-like binding vectors, and cond-like forms.
+
+Default configuration:
+
+```clojure
+{:rules
+ {:align
+  {:enabled? false
+   :targets #{:maps :bindings :clauses :reader-conditionals}
+   :extra-binding-forms []
+   :extra-clause-forms {}
+   :exclude-forms #{}
+   :indent-comments? true}}}
+```
+
+* `:targets`
+
+  Set of structural targets to align. Supported values are `:maps`,
+  `:bindings`, `:clauses`, and `:reader-conditionals`.
+
+* `:extra-binding-forms`
+
+  Vector of additional form names whose first binding vector should be
+  aligned.
+
+* `:extra-clause-forms`
+
+  Map of additional clause-style form names to the number of leading arguments
+  skipped before pairwise alignment.
+
+* `:exclude-forms`
+
+  Set of form names removed from alignment handling, including built-in
+  behavior and custom additions.
+
+* `:indent-comments?`
+
+  When true, standalone comments can be indented to match the next
+  substantive line in the same aligned group.
+
+Built-in support includes common let-style and cond-style forms. Reader
+conditionals are aligned when `:reader-conditionals` is present in `:targets`.
+Blank lines split alignment groups.
+
+Example:
+
+```clojure
+;; input
+(let [foo "bar"
+      bazqux "squid"])
+
+{:foo "bar"
+ :bazqux "squid"}
+
+;; output
+(let [foo    "bar"
+      bazqux "squid"])
+
+{:foo    "bar"
+ :bazqux "squid"}
+```
+
 ### `:whitespace`
 
 This rule corrects whitespace between and around forms.
