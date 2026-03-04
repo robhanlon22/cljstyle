@@ -292,7 +292,10 @@
       "(let [k,    1,\n      node, 2]\n  [k node])"
 
       "(cond\n  k, 1,\n  node, 2)"
-      "(cond\n  k,    1,\n  node, 2)")))
+      "(cond\n  k,    1,\n  node, 2)"
+
+      "{:meta \"^\", :meta* \"#^\", :vector \"[\", :map \"{\"\n :list \"(\", :eval \"#=\", :uneval \"#_\", :fn \"#(\"\n :set \"#{\", :deref \"@\", :reader-macro \"#\", :unquote \"~\"\n :var \"#'\", :quote \"'\", :syntax-quote \"`\", :unquote-splicing \"~@\",\n :namespaced-map \"#\"}"
+      "{:meta           \"^\",  :meta* \"#^\", :vector       \"[\",  :map              \"{\"\n :list           \"(\",  :eval  \"#=\", :uneval       \"#_\", :fn               \"#(\"\n :set            \"#{\", :deref \"@\",  :reader-macro \"#\",  :unquote          \"~\"\n :var            \"#'\", :quote \"'\",  :syntax-quote \"`\",  :unquote-splicing \"~@\",\n :namespaced-map \"#\"}")))
 
 
 (deftest multiline-pair-layout-cases
@@ -313,7 +316,10 @@
       "(let [source\n      1\n\n      very-verbose-symbol\n      2\n\n      id\n      3])"
 
       {}
-      "{:left\n ;; keep split layout\n :alpha\n\n :right\n :beta}")))
+      "{:left\n ;; keep split layout\n :alpha\n\n :right\n :beta}"
+
+      {}
+      "(let [durations (java.util.TreeMap.)\n      apply-indent-and-align-rules\n      (fn [formatted]\n        formatted)])")))
 
 
 (deftest non-target-safety-cases
