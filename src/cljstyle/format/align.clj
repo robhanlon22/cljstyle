@@ -208,20 +208,47 @@
     (+ line-width comma-width)))
 
 
+(defn- spacing-delta
+  "Return effective left-spacing delta after separator-space constraints."
+  [desired-delta has-left-space? left-space-width]
+  (if has-left-space?
+    (let [new-width (max 1 (+ left-space-width desired-delta))]
+      (- new-width left-space-width))
+    (if (pos? desired-delta)
+      desired-delta
+      0)))
+
+
 (defn- adjust-left-spacing
   "Adjust immediate left spacing, preserving at least one separating space."
   [zloc delta]
   (let [left (z/left* zloc)]
     (cond
       (zl/space? left)
-      (let [width (max 1 (+ delta (-> left z/node n/string count)))]
+      (let [left-space-width (-> left z/node n/string count)
+            delta (spacing-delta delta true left-space-width)
+            width (+ left-space-width delta)]
         (z/right* (z/replace* left (n/spaces width))))
 
-      (pos? delta)
-      (z/insert-space-left zloc delta)
-
       :else
-      zloc)))
+      (let [delta (spacing-delta delta false 0)]
+        (if (pos? delta)
+          (z/insert-space-left zloc delta)
+          zloc)))))
+
+
+(defn- node-left-space-width
+  "Return immediate left-space width for a node, or nil if absent."
+  [zloc]
+  (when-let [left (z/left* zloc)]
+    (when (zl/space? left)
+      (count (n/string (z/node left))))))
+
+
+(defn- append-cell-id
+  "Append a cell id to a transient vector index at key."
+  [index! k cell-id]
+  (assoc! index! k (conj (get index! k []) cell-id)))
 
 
 (declare maybe-indent-standalone-comment)
@@ -301,79 +328,211 @@
       (not line-has-content?)))
 
 
-(defn- scan-column-targets
-  "Plan maximum target columns per group from adjacent cell pairs.
-
-  Uses a transient map scoped to this function and returns a persistent map
-  keyed by `[group-id destination-column]`."
-  [start]
+(defn- collect-alignment-model
+  "Scan nodes into alignment cells and adjacency constraints."
+  [start {:keys [preserve-prev-on-newline?]
+          :or {preserve-prev-on-newline? false}}]
   (loop [node-loc start
          group-id 0
+         row-id 0
          column 0
          prev-column nil
-         prev-end nil
+         prev-cell-id nil
          line-has-content? false
-         targets! (transient {})]
+         next-cell-id 0
+         cells! (transient {})
+         cells-by-column! (transient {})
+         constraints! (transient {})
+         max-column-by-group! (transient {})]
     (if node-loc
       (cond
         (zl/space? node-loc)
         (recur (z/right* node-loc)
                group-id
+               row-id
                column
                prev-column
-               prev-end
+               prev-cell-id
                line-has-content?
-               targets!)
+               next-cell-id
+               cells!
+               cells-by-column!
+               constraints!
+               max-column-by-group!)
 
         (newline-node? node-loc)
-        (let [group-break? (starts-new-alignment-group? node-loc line-has-content?)
-              group-id (if group-break? (inc group-id) group-id)]
+        (let [group-break? (starts-new-alignment-group?
+                             node-loc
+                             line-has-content?)
+              group-id (if group-break? (inc group-id) group-id)
+              row-id (if group-break? 0 (inc row-id))]
           (recur (z/right* node-loc)
                  group-id
+                 row-id
                  0
-                 (when-not group-break? prev-column)
-                 (when-not group-break? prev-end)
+                 (when (and (not group-break?)
+                            preserve-prev-on-newline?)
+                   prev-column)
+                 (when (and (not group-break?)
+                            preserve-prev-on-newline?)
+                   prev-cell-id)
                  false
-                 targets!))
+                 next-cell-id
+                 cells!
+                 cells-by-column!
+                 constraints!
+                 max-column-by-group!))
 
         (comma-node? node-loc)
         (recur (z/right* node-loc)
                group-id
+               row-id
                column
                prev-column
-               prev-end
+               prev-cell-id
                true
-               targets!)
+               next-cell-id
+               cells!
+               cells-by-column!
+               constraints!
+               max-column-by-group!)
 
         (zl/comment? node-loc)
         (recur (z/right* node-loc)
                group-id
+               row-id
                column
                prev-column
-               prev-end
+               prev-cell-id
                true
-               targets!)
+               next-cell-id
+               cells!
+               cells-by-column!
+               constraints!
+               max-column-by-group!)
 
         :else
-        (let [end (node-end-position node-loc)
-              targets! (if (some? prev-column)
-                         (let [k [group-id (inc prev-column)]
-                               target (inc prev-end)
-                               current (get targets! k 0)]
-                           (assoc! targets! k (max current target)))
-                         targets!)]
+        (let [cell-id next-cell-id
+              start (start-column node-loc)
+              end (node-end-position node-loc)
+              left-space-width (node-left-space-width node-loc)
+              has-left-space? (some? left-space-width)
+              cell {:group-id group-id
+                    :row-id row-id
+                    :column column
+                    :start start
+                    :end end
+                    :has-left-space? has-left-space?
+                    :left-space-width (or left-space-width 0)}
+              cells! (assoc! cells! cell-id cell)
+              cells-by-column! (append-cell-id
+                                 cells-by-column!
+                                 [group-id column]
+                                 cell-id)
+              constraints! (if (some? prev-column)
+                             (append-cell-id
+                               constraints!
+                               [group-id (inc prev-column)]
+                               prev-cell-id)
+                             constraints!)
+              max-column-by-group! (assoc!
+                                     max-column-by-group!
+                                     group-id
+                                     (max column
+                                          (get
+                                            max-column-by-group!
+                                            group-id
+                                            -1)))]
           (recur (z/right* node-loc)
                  group-id
+                 row-id
                  (inc column)
                  column
-                 end
+                 cell-id
                  true
-                 targets!)))
-      (persistent! targets!))))
+                 (inc next-cell-id)
+                 cells!
+                 cells-by-column!
+                 constraints!
+                 max-column-by-group!)))
+      {:cells (persistent! cells!)
+       :cells-by-column (persistent! cells-by-column!)
+       :constraints (persistent! constraints!)
+       :max-column-by-group (persistent! max-column-by-group!)})))
+
+
+(defn- required-target-column
+  "Compute required target column for a destination column."
+  [source-cell-ids cells row-shift]
+  (when (seq source-cell-ids)
+    (reduce
+      (fn [max-target source-cell-id]
+        (let [{:keys [row-id end]} (get cells source-cell-id)
+              shifted-end (+ end (get row-shift row-id 0))]
+          (max max-target (inc shifted-end))))
+      0
+      source-cell-ids)))
+
+
+(defn- update-row-shifts
+  "Update per-row shifts after applying one destination-column target."
+  [row-shift destination-cell-ids target-column cells]
+  (reduce
+    (fn [row-shift cell-id]
+      (let [{:keys [row-id start has-left-space? left-space-width]}
+            (get cells cell-id)
+            shifted-start (+ start (get row-shift row-id 0))
+            desired-delta (- target-column shifted-start)
+            actual-delta (spacing-delta
+                           desired-delta
+                           has-left-space?
+                           left-space-width)]
+        (if (zero? actual-delta)
+          row-shift
+          (update row-shift row-id (fnil + 0) actual-delta))))
+    row-shift
+    destination-cell-ids))
+
+
+(defn- plan-column-targets
+  "Compute final column targets with deterministic lookahead planning."
+  [{:keys [cells cells-by-column constraints max-column-by-group]}]
+  (reduce-kv
+    (fn [plan group-id max-column]
+      (loop [destination-column 1
+             row-shift {}
+             plan plan]
+        (if (> destination-column max-column)
+          plan
+          (let [source-cell-ids (get constraints
+                                     [group-id destination-column])
+                target-column (required-target-column
+                                source-cell-ids
+                                cells
+                                row-shift)]
+            (if (nil? target-column)
+              (recur (inc destination-column)
+                     row-shift
+                     plan)
+              (let [destination-cell-ids (get cells-by-column
+                                              [group-id destination-column]
+                                              [])
+                    row-shift (update-row-shifts
+                                row-shift
+                                destination-cell-ids
+                                target-column
+                                cells)]
+                (recur (inc destination-column)
+                       row-shift
+                       (assoc plan
+                              [group-id destination-column]
+                              target-column))))))))
+    {}
+    max-column-by-group))
 
 
 (defn- apply-column-targets
-  "Apply planned column targets while preserving group boundaries."
+  "Apply precomputed column targets while preserving group boundaries."
   [start plan {:keys [indent-comments?]}]
   (loop [node-loc start
          group-id 0
@@ -591,9 +750,12 @@
                           clause-form-skips (:clause-form-skips rule-config)]
                       #(first-alignable-clause-node % skip-matcher clause-form-skips)))]
      (if-let [start (start-fn zloc)]
-       (let [plan (scan-column-targets start)
-             zloc (apply-column-targets start plan rule-config)]
-         (z/up zloc))
+       (let [model (collect-alignment-model
+                     start
+                     {:preserve-prev-on-newline? (= :clause alignment-kind)})
+             plan (plan-column-targets model)]
+         (-> (apply-column-targets start plan rule-config)
+             z/up))
        zloc))))
 
 
