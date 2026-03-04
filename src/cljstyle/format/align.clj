@@ -133,12 +133,6 @@
   (= :newline (n/tag (z/node zloc))))
 
 
-(defn- namespaced-map?
-  "True if the node at this location is a namespaced map."
-  [zloc]
-  (= :namespaced-map (n/tag (z/node zloc))))
-
-
 (def ^:private trivial-tags
   #{:whitespace :comma :newline :comment})
 
@@ -149,39 +143,19 @@
   (contains? trivial-tags (n/tag (z/node zloc))))
 
 
-(defn- skip-trivial-nodes
-  "Skip whitespace, commas, comments, and newline tokens."
-  [zloc move]
-  (z/skip move trivial-node? zloc))
-
-
 (defn- next-form-node
   "Return the next substantive sibling node."
   [zloc]
-  (-> zloc z/right* (skip-trivial-nodes z/right*)))
-
-
-(defn- next-substantive-node
-  "Return the next substantive node to the right.
-
-  Used for comment indentation lookahead."
-  [zloc]
-  (loop [zloc (z/right* zloc)]
-    (cond
-      (nil? zloc)
-      nil
-
-      (trivial-node? zloc)
-      (recur (z/right* zloc))
-
-      :else
-      zloc)))
+  (z/skip z/right* trivial-node? (z/right* zloc)))
 
 
 (defn- first-form-node
   "Return the first substantive child node, unwrapping metadata."
   [zloc]
-  (-> zloc z/down (skip-trivial-nodes z/right*) zl/unwrap-meta))
+  (-> zloc
+      z/down
+      (#(z/skip z/right* trivial-node? %))
+      zl/unwrap-meta))
 
 
 (defn- start-column
@@ -245,13 +219,24 @@
       (count (n/string (z/node left))))))
 
 
-(defn- append-cell-id
-  "Append a cell id to a transient vector index at key."
-  [index! k cell-id]
-  (assoc! index! k (conj (get index! k []) cell-id)))
+(defn- maybe-indent-standalone-comment
+  "Indent a standalone comment to the next substantive node when enabled.
 
-
-(declare maybe-indent-standalone-comment)
+  Comments on the same line as an opening delimiter are left as-is."
+  [comment-loc indent-comments? line-has-content?]
+  (let [parent (z/up comment-loc)]
+    (if (or (not indent-comments?)
+            line-has-content?
+            (= (first (z/position comment-loc))
+               (first (z/position parent))))
+      comment-loc
+      (let [next-loc (next-form-node comment-loc)
+            target-column (when next-loc (start-column next-loc))]
+        (if (pos-int? target-column)
+          (adjust-left-spacing
+            comment-loc
+            (- target-column (start-column comment-loc)))
+          comment-loc)))))
 
 
 (defn- pad-multiline-continuations
@@ -260,28 +245,36 @@
   When comment indentation is enabled, standalone comment lines in continuation
   blocks may follow the next substantive line."
   [zloc padding indent-comments?]
-  (if-some [zloc (z/down zloc)]
-    (loop [zloc zloc]
-      (if-some [line-node (when-let [newline-loc (z/skip z/next* (complement newline-node?) zloc)]
-                            (let [next-loc (z/next* newline-loc)]
-                              (when (not (z/end? next-loc))
-                                next-loc)))]
-        (let [line-node (adjust-left-spacing line-node padding)
-              first-content (let [content-loc (z/skip
-                                                z/right*
-                                                #(or (zl/space? %)
-                                                     (comma-node? %))
-                                                line-node)]
-                              (when (and content-loc
-                                         (not (newline-node? content-loc)))
-                                content-loc))
-              line-node (if (and indent-comments?
-                                 (zl/comment? first-content))
-                          (maybe-indent-standalone-comment first-content true false)
-                          line-node)]
-          (recur line-node))
-        zloc))
-    zloc))
+  (letfn [(find-next-continuation-line-node
+            [current-loc]
+            (when-let [newline-loc (z/skip z/next* (complement newline-node?) current-loc)]
+              (let [next-loc (z/next* newline-loc)]
+                (when-not (z/end? next-loc)
+                  next-loc))))
+          (find-first-line-content
+            [line-node]
+            (let [content-loc (z/skip
+                                z/right*
+                                #(or (zl/space? %)
+                                     (comma-node? %))
+                                line-node)]
+              (when (and content-loc
+                         (not (newline-node? content-loc)))
+                content-loc)))
+          (pad-continuation-line
+            [line-node]
+            (let [line-node (adjust-left-spacing line-node padding)
+                  first-content (find-first-line-content line-node)]
+              (if (and indent-comments?
+                       (zl/comment? first-content))
+                (maybe-indent-standalone-comment first-content true false)
+                line-node)))]
+    (if-some [line-node (z/down zloc)]
+      (loop [line-node line-node]
+        (if-some [next-line-node (find-next-continuation-line-node line-node)]
+          (recur (pad-continuation-line next-line-node))
+          line-node))
+      zloc)))
 
 
 (defn- pad-node-to-column
@@ -299,26 +292,6 @@
         (z/subedit-> pad-subtree))))
 
 
-(defn- maybe-indent-standalone-comment
-  "Indent a standalone comment to the next substantive node when enabled.
-
-  Comments on the same line as an opening delimiter are left as-is."
-  [comment-loc indent-comments? line-has-content?]
-  (let [parent (z/up comment-loc)]
-    (if (or (not indent-comments?)
-            line-has-content?
-            (= (first (z/position comment-loc))
-               (first (z/position parent))))
-      comment-loc
-      (let [next-loc (next-substantive-node comment-loc)
-            target-column (when next-loc (start-column next-loc))]
-        (if (pos-int? target-column)
-          (adjust-left-spacing
-            comment-loc
-            (- target-column (start-column comment-loc)))
-          comment-loc)))))
-
-
 (defn- starts-new-alignment-group?
   "True if a newline starts a fresh alignment group.
 
@@ -328,137 +301,113 @@
       (not line-has-content?)))
 
 
+(defn- advance-model-on-newline
+  "Advance scanner state across a newline, resetting row/column as needed."
+  [state newline-loc preserve-prev-on-newline?]
+  (let [{:keys [group-id row-id line-has-content? prev-column prev-cell-id]} state
+        group-break? (starts-new-alignment-group? newline-loc line-has-content?)
+        keep-previous? (and (not group-break?) preserve-prev-on-newline?)]
+    (assoc state
+           :node-loc (z/right* newline-loc)
+           :group-id (if group-break? (inc group-id) group-id)
+           :row-id (if group-break? 0 (inc row-id))
+           :column 0
+           :prev-column (when keep-previous? prev-column)
+           :prev-cell-id (when keep-previous? prev-cell-id)
+           :line-has-content? false)))
+
+
+(defn- register-substantive-cell
+  "Register one substantive node as an alignment cell and advance scanner state."
+  [state node-loc]
+  (let [{:keys [group-id row-id column prev-column prev-cell-id next-cell-id
+                cells! cells-by-column! constraints! max-column-by-group!]} state
+        cell-id next-cell-id
+        start (start-column node-loc)
+        end (node-end-position node-loc)
+        left-space-width (node-left-space-width node-loc)
+        has-left-space? (some? left-space-width)
+        cell {:group-id group-id
+              :row-id row-id
+              :column column
+              :start start
+              :end end
+              :has-left-space? has-left-space?
+              :left-space-width (or left-space-width 0)}
+        cells! (assoc! cells! cell-id cell)
+        column-key [group-id column]
+        cells-by-column! (assoc!
+                           cells-by-column!
+                           column-key
+                           (conj (get cells-by-column! column-key []) cell-id))
+        constraints! (if (some? prev-column)
+                       (let [destination-key [group-id (inc prev-column)]]
+                         (assoc!
+                           constraints!
+                           destination-key
+                           (conj (get constraints! destination-key []) prev-cell-id)))
+                       constraints!)
+        max-column-by-group! (assoc!
+                               max-column-by-group!
+                               group-id
+                               (max column
+                                    (get max-column-by-group! group-id -1)))]
+    (assoc state
+           :node-loc (z/right* node-loc)
+           :column (inc column)
+           :prev-column column
+           :prev-cell-id cell-id
+           :line-has-content? true
+           :next-cell-id (inc next-cell-id)
+           :cells! cells!
+           :cells-by-column! cells-by-column!
+           :constraints! constraints!
+           :max-column-by-group! max-column-by-group!)))
+
+
 (defn- collect-alignment-model
   "Scan nodes into alignment cells and adjacency constraints."
   [start {:keys [preserve-prev-on-newline?]
           :or {preserve-prev-on-newline? false}}]
-  (loop [node-loc start
-         group-id 0
-         row-id 0
-         column 0
-         prev-column nil
-         prev-cell-id nil
-         line-has-content? false
-         next-cell-id 0
-         cells! (transient {})
-         cells-by-column! (transient {})
-         constraints! (transient {})
-         max-column-by-group! (transient {})]
-    (if node-loc
+  (loop [state {:node-loc start
+                :group-id 0
+                :row-id 0
+                :column 0
+                :prev-column nil
+                :prev-cell-id nil
+                :line-has-content? false
+                :next-cell-id 0
+                :cells! (transient {})
+                :cells-by-column! (transient {})
+                :constraints! (transient {})
+                :max-column-by-group! (transient {})}]
+    (if-let [node-loc (:node-loc state)]
       (cond
         (zl/space? node-loc)
-        (recur (z/right* node-loc)
-               group-id
-               row-id
-               column
-               prev-column
-               prev-cell-id
-               line-has-content?
-               next-cell-id
-               cells!
-               cells-by-column!
-               constraints!
-               max-column-by-group!)
+        (recur (assoc state :node-loc (z/right* node-loc)))
 
         (newline-node? node-loc)
-        (let [group-break? (starts-new-alignment-group?
-                             node-loc
-                             line-has-content?)
-              group-id (if group-break? (inc group-id) group-id)
-              row-id (if group-break? 0 (inc row-id))]
-          (recur (z/right* node-loc)
-                 group-id
-                 row-id
-                 0
-                 (when (and (not group-break?)
-                            preserve-prev-on-newline?)
-                   prev-column)
-                 (when (and (not group-break?)
-                            preserve-prev-on-newline?)
-                   prev-cell-id)
-                 false
-                 next-cell-id
-                 cells!
-                 cells-by-column!
-                 constraints!
-                 max-column-by-group!))
+        (recur (advance-model-on-newline
+                 state
+                 node-loc
+                 preserve-prev-on-newline?))
 
         (comma-node? node-loc)
-        (recur (z/right* node-loc)
-               group-id
-               row-id
-               column
-               prev-column
-               prev-cell-id
-               true
-               next-cell-id
-               cells!
-               cells-by-column!
-               constraints!
-               max-column-by-group!)
+        (recur (assoc state
+                      :node-loc (z/right* node-loc)
+                      :line-has-content? true))
 
         (zl/comment? node-loc)
-        (recur (z/right* node-loc)
-               group-id
-               row-id
-               column
-               prev-column
-               prev-cell-id
-               true
-               next-cell-id
-               cells!
-               cells-by-column!
-               constraints!
-               max-column-by-group!)
+        (recur (assoc state
+                      :node-loc (z/right* node-loc)
+                      :line-has-content? true))
 
         :else
-        (let [cell-id next-cell-id
-              start (start-column node-loc)
-              end (node-end-position node-loc)
-              left-space-width (node-left-space-width node-loc)
-              has-left-space? (some? left-space-width)
-              cell {:group-id group-id
-                    :row-id row-id
-                    :column column
-                    :start start
-                    :end end
-                    :has-left-space? has-left-space?
-                    :left-space-width (or left-space-width 0)}
-              cells! (assoc! cells! cell-id cell)
-              cells-by-column! (append-cell-id
-                                 cells-by-column!
-                                 [group-id column]
-                                 cell-id)
-              constraints! (if (some? prev-column)
-                             (append-cell-id
-                               constraints!
-                               [group-id (inc prev-column)]
-                               prev-cell-id)
-                             constraints!)
-              max-column-by-group! (assoc!
-                                     max-column-by-group!
-                                     group-id
-                                     (max column
-                                          (get
-                                            max-column-by-group!
-                                            group-id
-                                            -1)))]
-          (recur (z/right* node-loc)
-                 group-id
-                 row-id
-                 (inc column)
-                 column
-                 cell-id
-                 true
-                 (inc next-cell-id)
-                 cells!
-                 cells-by-column!
-                 constraints!
-                 max-column-by-group!)))
-      {:cells (persistent! cells!)
-       :cells-by-column (persistent! cells-by-column!)
-       :constraints (persistent! constraints!)
-       :max-column-by-group (persistent! max-column-by-group!)})))
+        (recur (register-substantive-cell state node-loc)))
+      {:cells (persistent! (:cells! state))
+       :cells-by-column (persistent! (:cells-by-column! state))
+       :constraints (persistent! (:constraints! state))
+       :max-column-by-group (persistent! (:max-column-by-group! state))})))
 
 
 (defn- required-target-column
@@ -494,97 +443,104 @@
     destination-cell-ids))
 
 
+(defn- plan-group-targets
+  "Plan destination columns for one alignment group."
+  [plan group-id max-column cells cells-by-column constraints]
+  (loop [destination-column 1
+         row-shift {}
+         plan plan]
+    (if (> destination-column max-column)
+      plan
+      (let [source-cell-ids (get constraints [group-id destination-column])
+            target-column (required-target-column source-cell-ids cells row-shift)]
+        (if (nil? target-column)
+          (recur (inc destination-column) row-shift plan)
+          (let [destination-cell-ids (get cells-by-column
+                                          [group-id destination-column]
+                                          [])
+                row-shift (update-row-shifts
+                            row-shift
+                            destination-cell-ids
+                            target-column
+                            cells)]
+            (recur (inc destination-column)
+                   row-shift
+                   (assoc plan [group-id destination-column] target-column))))))))
+
+
 (defn- plan-column-targets
   "Compute final column targets with deterministic lookahead planning."
   [{:keys [cells cells-by-column constraints max-column-by-group]}]
   (reduce-kv
     (fn [plan group-id max-column]
-      (loop [destination-column 1
-             row-shift {}
-             plan plan]
-        (if (> destination-column max-column)
-          plan
-          (let [source-cell-ids (get constraints
-                                     [group-id destination-column])
-                target-column (required-target-column
-                                source-cell-ids
-                                cells
-                                row-shift)]
-            (if (nil? target-column)
-              (recur (inc destination-column)
-                     row-shift
-                     plan)
-              (let [destination-cell-ids (get cells-by-column
-                                              [group-id destination-column]
-                                              [])
-                    row-shift (update-row-shifts
-                                row-shift
-                                destination-cell-ids
-                                target-column
-                                cells)]
-                (recur (inc destination-column)
-                       row-shift
-                       (assoc plan
-                              [group-id destination-column]
-                              target-column))))))))
+      (plan-group-targets
+        plan
+        group-id
+        max-column
+        cells
+        cells-by-column
+        constraints))
     {}
     max-column-by-group))
+
+
+(defn- apply-node-target-step
+  "Apply one comment or substantive-node alignment step."
+  [state plan indent-comments?]
+  (let [{:keys [node-loc group-id column line-has-content?]} state]
+    (if (zl/comment? node-loc)
+      (let [comment-loc (maybe-indent-standalone-comment
+                          node-loc
+                          indent-comments?
+                          line-has-content?)]
+        (assoc state
+               :node-loc (z/right* comment-loc)
+               :line-has-content? true
+               :last-loc comment-loc))
+      (let [aligned-node (if-some [target (get plan [group-id column])]
+                           (pad-node-to-column node-loc target indent-comments?)
+                           node-loc)]
+        (assoc state
+               :node-loc (z/right* aligned-node)
+               :column (inc column)
+               :line-has-content? true
+               :last-loc aligned-node)))))
 
 
 (defn- apply-column-targets
   "Apply precomputed column targets while preserving group boundaries."
   [start plan {:keys [indent-comments?]}]
-  (loop [node-loc start
-         group-id 0
-         column 0
-         line-has-content? false
-         last-loc start]
-    (if node-loc
+  (loop [state {:node-loc start
+                :group-id 0
+                :column 0
+                :line-has-content? false
+                :last-loc start}]
+    (if-let [node-loc (:node-loc state)]
       (cond
         (zl/space? node-loc)
-        (recur (z/right* node-loc)
-               group-id
-               column
-               line-has-content?
-               last-loc)
+        (recur (assoc state :node-loc (z/right* node-loc)))
 
         (newline-node? node-loc)
-        (let [group-break? (starts-new-alignment-group? node-loc line-has-content?)
-              group-id (if group-break? (inc group-id) group-id)]
-          (recur (z/right* node-loc)
-                 group-id
-                 0
-                 false
-                 node-loc))
+        (let [group-break? (starts-new-alignment-group?
+                             node-loc
+                             (:line-has-content? state))]
+          (recur (assoc state
+                        :node-loc (z/right* node-loc)
+                        :group-id (if group-break?
+                                    (inc (:group-id state))
+                                    (:group-id state))
+                        :column 0
+                        :line-has-content? false
+                        :last-loc node-loc)))
 
         (comma-node? node-loc)
-        (recur (z/right* node-loc)
-               group-id
-               column
-               true
-               last-loc)
-
-        (zl/comment? node-loc)
-        (let [comment-loc (maybe-indent-standalone-comment
-                            node-loc
-                            indent-comments?
-                            line-has-content?)]
-          (recur (z/right* comment-loc)
-                 group-id
-                 column
-                 true
-                 comment-loc))
+        (recur (assoc state
+                      :node-loc (z/right* node-loc)
+                      :line-has-content? true))
 
         :else
-        (let [node-loc (if-some [target (get plan [group-id column])]
-                         (pad-node-to-column node-loc target indent-comments?)
-                         node-loc)]
-          (recur (z/right* node-loc)
-                 group-id
-                 (inc column)
-                 true
-                 node-loc)))
-      last-loc)))
+        (recur (apply-node-target-step state plan indent-comments?)))
+      (:last-loc state))))
 
 
 (defn- binding-vector?
@@ -598,6 +554,16 @@
                   (= zloc (next-form-node head-loc))))))))
 
 
+(defn- indent-rule->skip-count
+  "Extract clause skip count from one indentation rule option vector."
+  [opts]
+  (let [method (first opts)]
+    (if (and (sequential? method)
+             (number? (second method)))
+      (second method)
+      0)))
+
+
 (defn- compile-clause-skip-matcher
   "Compile indentation rules into exact, unqualified, and regex skip matchers.
 
@@ -606,14 +572,7 @@
   (reduce
     (fn compile-rule
       [{:keys [exact unqualified] :as matcher} [rule-key opts]]
-      (let [method (first opts)
-            skip (cond
-                   (and (sequential? method)
-                        (number? (second method)))
-                   (second method)
-
-                   :else
-                   0)]
+      (let [skip (indent-rule->skip-count opts)]
         (cond
           (and (symbol? rule-key) (namespace rule-key))
           (assoc matcher :exact (assoc exact rule-key skip))
@@ -688,7 +647,7 @@
   (cond
     (and (contains? (:target-set rule-config) :maps)
          (or (z/map? zloc)
-             (namespaced-map? zloc)))
+             (= :namespaced-map (n/tag (z/node zloc)))))
     :map
 
     (and (contains? (:target-set rule-config) :bindings)
@@ -718,6 +677,35 @@
     (boolean (node-alignment-kind zloc rule-config))))
 
 
+(defn- map-alignment-start-node
+  "Return first alignable entry in a map or namespaced map form."
+  [zloc]
+  (if (z/map? zloc)
+    (first-form-node zloc)
+    (-> zloc
+        z/down
+        (#(z/skip z/right* (complement z/map?) %))
+        first-form-node)))
+
+
+(defn- resolve-start-node-for-kind
+  "Resolve the first alignable node for the selected alignment strategy."
+  [zloc alignment-kind rule-config rules-config]
+  (cond
+    (= :map alignment-kind)
+    (map-alignment-start-node zloc)
+
+    (or (= :binding alignment-kind)
+        (= :reader-conditional alignment-kind))
+    (first-form-node zloc)
+
+    :else
+    (let [skip-matcher (clause-skip-matcher
+                         (get-in rules-config [:indentation :indents]))
+          clause-form-skips (:clause-form-skips rule-config)]
+      (first-alignable-clause-node zloc skip-matcher clause-form-skips))))
+
+
 (defn- align-node
   "Apply alignment to one supported node using rule and indent config.
 
@@ -728,28 +716,12 @@
    (let [rule-config (effective-config rule-config)
          rules-config (or rules-config {})
          alignment-kind (node-alignment-kind zloc rule-config)
-         start-fn (cond
-                    (= :map alignment-kind)
-                    (fn [loc]
-                      (if (z/map? loc)
-                        (first-form-node loc)
-                        (-> loc
-                            z/down
-                            (#(z/skip z/right* (complement z/map?) %))
-                            first-form-node)))
-
-                    (= :binding alignment-kind)
-                    first-form-node
-
-                    (= :reader-conditional alignment-kind)
-                    first-form-node
-
-                    :else
-                    (let [skip-matcher (clause-skip-matcher
-                                         (get-in rules-config [:indentation :indents]))
-                          clause-form-skips (:clause-form-skips rule-config)]
-                      #(first-alignable-clause-node % skip-matcher clause-form-skips)))]
-     (if-let [start (start-fn zloc)]
+         start (resolve-start-node-for-kind
+                 zloc
+                 alignment-kind
+                 rule-config
+                 rules-config)]
+     (if start
        (let [model (collect-alignment-model
                      start
                      {:preserve-prev-on-newline? (= :clause alignment-kind)})
