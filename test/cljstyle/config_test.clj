@@ -34,6 +34,8 @@
     (is (valid? :cljstyle.config.rules.indentation/indents {'foo/bar [[:inner 0]]}))
     (is (valid? :cljstyle.config.rules.indentation/indents {#"foo" [[:inner 3]]})))
   (testing "align"
+    (is (invalid? :cljstyle.config.rules/align nil))
+    (is (invalid? :cljstyle.config.rules/align "align"))
     (is (invalid? :cljstyle.config.rules/align {:targets [:maps]}))
     (is (invalid? :cljstyle.config.rules/align {:targets #{:maps :unknown}}))
     (is (invalid? :cljstyle.config.rules/align {:extra-binding-forms #{"let"}}))
@@ -46,7 +48,14 @@
     (is (valid? :cljstyle.config.rules/align {:extra-binding-forms ["my-let" "my/let"]}))
     (is (valid? :cljstyle.config.rules/align {:extra-clause-forms {"my-cond" 0 "my/case-like" 1}}))
     (is (valid? :cljstyle.config.rules/align {:exclude-forms #{"case" "cond"}}))
-    (is (valid? :cljstyle.config.rules/align {:indent-comments? false})))
+    (is (valid? :cljstyle.config.rules/align {:indent-comments? false}))
+    (is (valid? :cljstyle.config.rules/align
+                {:enabled? true
+                 :targets #{:maps :bindings :clauses :reader-conditionals}
+                 :extra-binding-forms ["my-let" "my/let"]
+                 :extra-clause-forms {"my-cond" 0 "my/case-like" 1}
+                 :exclude-forms #{"case" "cond"}
+                 :indent-comments? true})))
   (testing "file-ignore"
     (is (invalid? :cljstyle.config.files/ignore 123))
     (is (invalid? :cljstyle.config.files/ignore ["foo"]))
@@ -58,8 +67,21 @@
     (is (invalid? ::config/config nil))
     (is (invalid? ::config/config "foo"))
     (is (invalid? ::config/config [123]))
+    (is (invalid? ::config/config {:rules nil}))
+    (is (invalid? ::config/config {:rules "rules"}))
     (is (valid? ::config/config {}))
     (is (valid? ::config/config {:rules {:indentation {:enabled? true}}}))
+    (is (valid? ::config/config
+               {:rules
+                {:align
+                 {:enabled? true
+                  :targets #{:maps :bindings :clauses :reader-conditionals}
+                  :extra-binding-forms ["my-let" "my/let"]
+                  :extra-clause-forms {"my-cond" 0 "my/case-like" 1}
+                  :exclude-forms #{"case" "cond"}
+                  :indent-comments? true}}}))
+    (is (invalid? ::config/config
+                 {:rules {:align {:targets #{:unknown}}}}))
     (is (valid? ::config/config {:something-else 123}))
     (is (valid? ::config/config config/default-config))))
 
