@@ -251,10 +251,52 @@
                    :cljstyle.config.rules.namespaces/import-break-width]))
 
 
+;; #### Rule: Align
+
+;; Structural alignment targets that can be enabled or disabled.
+(s/def :cljstyle.config.rules.align/target
+  #{:maps :bindings :clauses :reader-conditionals})
+
+
+;; Set of structural alignment targets to apply.
+(s/def :cljstyle.config.rules.align/targets
+  (s/coll-of :cljstyle.config.rules.align/target :kind set?))
+
+
+;; Additional form names whose first binding vector should be aligned.
+(s/def :cljstyle.config.rules.align/extra-binding-forms
+  (s/coll-of string? :kind vector?))
+
+
+;; Additional clause-style form names with leading argument skip counts.
+(s/def :cljstyle.config.rules.align/extra-clause-forms
+  (s/map-of string? nat-int?))
+
+
+;; Form names to exclude from built-in and custom alignment handling.
+(s/def :cljstyle.config.rules.align/exclude-forms
+  (s/coll-of string? :kind set?))
+
+
+;; Whether standalone comments should follow the next substantive line's indent.
+(s/def :cljstyle.config.rules.align/indent-comments?
+  boolean?)
+
+
+(s/def :cljstyle.config.rules/align
+  (s/keys :opt-un [:cljstyle.config.rules.global/enabled?
+                   :cljstyle.config.rules.align/targets
+                   :cljstyle.config.rules.align/extra-binding-forms
+                   :cljstyle.config.rules.align/extra-clause-forms
+                   :cljstyle.config.rules.align/exclude-forms
+                   :cljstyle.config.rules.align/indent-comments?]))
+
+
 ;; #### Rules Map
 
 (s/def ::rules
   (s/keys :opt-un [:cljstyle.config.rules/indentation
+                   :cljstyle.config.rules/align
                    :cljstyle.config.rules/whitespace
                    :cljstyle.config.rules/blank-lines
                    :cljstyle.config.rules/eof-newline
@@ -287,6 +329,10 @@
 (def default-indents
   "Default indentation rules included with the library."
   (read-file (io/resource "cljstyle/indents.clj")))
+
+
+(def default-align-targets
+  #{:maps :bindings :clauses :reader-conditionals})
 
 
 (def legacy-config
@@ -325,6 +371,14 @@
     {:enabled? true
      :list-indent 2
      :indents default-indents}
+
+    :align
+    {:enabled? false
+     :targets default-align-targets
+     :extra-binding-forms []
+     :extra-clause-forms {}
+     :exclude-forms #{}
+     :indent-comments? true}
 
     :whitespace
     {:enabled? true

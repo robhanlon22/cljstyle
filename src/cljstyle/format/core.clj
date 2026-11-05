@@ -1,6 +1,7 @@
 (ns cljstyle.format.core
   "Core formatting logic which ties together all rules."
   (:require
+    [cljstyle.format.align :as align]
     [cljstyle.format.comment :as comment]
     [cljstyle.format.fn :as fn]
     [cljstyle.format.indent :as indent]
@@ -102,6 +103,22 @@
       form)))
 
 
+(defn- apply-indentation
+  "Indent forms, optionally align columns, and remove trailing whitespace."
+  [form rules-config durations]
+  (if (get-in rules-config [:align :enabled?])
+    (let [indented (apply-walk-rules form [indent/reindent-lines] rules-config durations)
+          start (System/nanoTime)
+          aligned (align/reformat-form indented (:align rules-config))]
+      (record-elapsed! durations :align nil (- (System/nanoTime) start))
+      (apply-walk-rules aligned [ws/remove-trailing] rules-config durations))
+    (apply-walk-rules
+      form
+      [indent/reindent-lines ws/remove-trailing]
+      rules-config
+      durations)))
+
+
 (defn reformat-form
   "Apply formatting rules to the given form."
   [form rules-config]
@@ -125,11 +142,7 @@
            ns/format-namespaces]
           rules-config
           durations)
-        (apply-walk-rules
-          [indent/reindent-lines
-           ws/remove-trailing]
-          rules-config
-          durations)
+        (apply-indentation rules-config durations)
         (vary-meta assoc ::durations (into {} durations)))))
 
 

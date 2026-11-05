@@ -192,6 +192,54 @@
         "(defelem foo [x]\n  [:foo x])")))
 
 
+(deftest aligned-forms
+  (let [align-rules (assoc-in default-rules [:align :enabled?] true)
+        align-override-rules (assoc-in align-rules [:indentation :indents 'cond->] [[:inner 0]])
+        align-custom-clause-rules (-> align-rules
+                                      (update-in
+                                        [:align :extra-clause-forms]
+                                        merge
+                                        {"demo/switcher" 1
+                                         "regex-switch" 1})
+                                      (update-in
+                                        [:indentation :indents]
+                                        merge
+                                        {'demo/switcher [[:inner 1]]
+                                         #"^regex-switch$" [[:inner 1]]}))]
+    (is (reformatted?
+          fmt/reformat-form default-rules
+          "(let [path \"deps\"\n      profile \"tool\"]\n  [path profile])"
+          "(let [path \"deps\"\n      profile \"tool\"]\n  [path profile])"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "(let [path \"deps\"\n      profile \"tool\"]\n  [path profile])"
+          "(let [path    \"deps\"\n      profile \"tool\"]\n  [path profile])"))
+    (is (reformatted?
+          fmt/reformat-form align-override-rules
+          "(cond-> compile-mode\n  a 1\n  bb 2)"
+          "(cond-> compile-mode\n  a  1\n  bb 2)"))
+    (is (reformatted?
+          fmt/reformat-form align-custom-clause-rules
+          "(demo/switcher base\n  a 1\n  bb 2)"
+          "(demo/switcher base\n               a  1\n               bb 2)"))
+    (is (reformatted?
+          fmt/reformat-form align-custom-clause-rules
+          "(regex-switch base\n  a 1\n  bb 2)"
+          "(regex-switch base\n              a  1\n              bb 2)"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "{:c [(str base)\n\n     (emit base)]\n :long-key 1}"
+          "{:c        [(str base)\n\n            (emit base)]\n :long-key 1}"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "{:a 1 ;; inline\n :long-key 2}"
+          "{:a        1 ; inline\n :long-key 2}"))
+    (is (reformatted?
+          fmt/reformat-form align-rules
+          "{:a 1\n ;; trailing\n}"
+          "{:a 1\n ;; trailing\n }"))))
+
+
 (deftest eof-newlines
   (is (= ":x" (fmt/reformat-file ":x" (assoc-in default-rules [:eof-newline :enabled?] false))))
   (is (= ":x\n\n\n" (fmt/reformat-file ":x\n\n\n" (assoc-in default-rules [:eof-newline :enabled?] false))))
